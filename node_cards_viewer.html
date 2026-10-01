@@ -41,6 +41,9 @@ button:focus-visible,select:focus-visible,input[type=range]:focus-visible,.chip 
 kbd{font:11px var(--mono);border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 5px;margin-right:3px;background:#fff;color:var(--ink)}
 .ol{font-size:12px;color:var(--faint);margin:10px 12px 3px}
 #console{height:auto;max-height:110px;border:1px solid var(--line);margin:0 10px;border-radius:8px;background:#fff;padding:6px 10px}
+.pbar{margin:0 0 10px;padding:8px 12px;border:1px solid #93C5FD;border-left:4px solid #1D4ED8;border-radius:8px;background:#EFF6FF;color:#14213D;font-size:13px}
+.pbar b{color:#1D4ED8}.pbar .k{display:inline-block;width:10px;height:10px;border-radius:2px;margin:0 3px 0 10px;vertical-align:-1px}
+.pscore{position:fixed;right:16px;bottom:14px;z-index:30;background:#fff;border:1px solid #93C5FD;border-radius:999px;padding:4px 12px;font-size:12.5px;font-weight:700;color:#1D4ED8;box-shadow:0 1px 4px rgba(0,0,0,.08)}
 .drop{margin:24px auto;max-width:640px;border:2px dashed var(--line);border-radius:12px;padding:28px;text-align:center;color:var(--muted)}
 .drop b{color:var(--ink)}
 .main{display:grid;grid-template-columns:calc(320px * var(--cz,1)) minmax(0,1fr);gap:0}
@@ -297,6 +300,7 @@ button.icon{width:30px;padding:4px 0;font-weight:700;border-radius:50%}
     <label class="mi"><input type="checkbox" id="hstep">heap steps only</label>
     <label class="mi"><input type="checkbox" id="wstep">watch steps only</label>
     <label class="mi"><input type="checkbox" id="bstep">bug steps only</label>
+    <label class="mi"><input type="checkbox" id="predC">predict<small>→ asks what will change first</small></label>
     <div class="mg">Zoom</div>
     <label class="mz">picture <select id="pz"><option value="fit">fit</option><option value="75">75%</option><option value="100">100%</option><option value="125">125%</option><option value="150">150%</option><option value="175">175%</option><option value="200">200%</option></select></label>
     <label class="mz">code <select id="cz"><option value="100">100%</option><option value="125">125%</option><option value="150">150%</option><option value="175">175%</option><option value="200">200%</option></select></label>
@@ -334,6 +338,7 @@ button.icon{width:30px;padding:4px 0;font-weight:700;border-radius:50%}
   <div class="hrow" style="grid-template-columns:1fr;gap:3px;padding:5px 0"><span class="sw txt" style="font-size:11.5px;width:auto;white-space:nowrap">items <span style="border:1px solid #A9B6C6;border-radius:999px;padding:0 6px;background:#F1F5F9">head</span>  10 ⇄ 30 → (back to items)</span><span>A kernel-style list (<b>struct list_head</b> inside each item): arrows land on the item's <b>list</b> field, and hovering one shows <i>container_of(p, struct item, list)</i>, the item it's in. A list_head on the stack or a global is the list's <b>head</b>: the circle goes through it. <b>Globals</b>, your file's global and static variables, sit in their own box above the frames</span></div>
   <div class="hrow" style="grid-template-columns:1fr;gap:3px;padding:5px 0"><span class="sw txt" style="font-size:11.5px;width:auto;white-space:nowrap">head: 1 → 2 → 3 → 4 → (back to 2) <span style="border:1px solid #B45309;border-radius:999px;padding:0 6px;background:#FEF3C7;color:#B45309">↻ loop start</span></span><span>A loop back into the middle (a "ρ" shape): the last next points to an earlier node. Its arrow curves back to that node, which is marked <b>↻ loop start</b>; a walk from the head never reaches NULL</span></div>
   <div class="hrow" style="grid-template-columns:1fr;gap:3px;padding:5px 0"><span class="sw txt" style="font-size:11.5px;width:auto;white-space:nowrap">r-&gt;buf  [0] [1] [2] …</span><span>An array inside a struct (<b>int buf[5]</b>), in a card or a struct variable: slots like any array, with their indexes, ?? until set, highlights, <b>↑i</b> and the out-of-bounds check. Named <b>r-&gt;buf[2]</b>, <b>(*r).buf[2]</b>, <b>&amp;r-&gt;buf[2]</b>. More than 16: a "+N more" box</span></div>
+  <div class="hrow" style="grid-template-columns:1fr;gap:3px;padding:5px 0"><span class="sw txt" style="font-size:11.5px;width:auto;white-space:nowrap;color:#1D4ED8">Predict: 7 of 9 right</span><span><b>Predict</b> (View menu): → first asks which boxes the line will change. Click them, press → again: <span style="color:#15803D;font-weight:700">green</span> picked and changed, <span style="color:#B45309;font-weight:700">amber</span> changed but not picked, <span style="color:#B91C1C;font-weight:700">red</span> picked but didn't change. ← and Play never ask</span></div>
   <div class="hrow"><span class="sw txt" style="font-weight:400;color:#5B6B82">at 0x…</span><span>Under every box: the address where it lives (the simple one, or the real one: see View)</span></div>
   <div class="hrow" style="grid-template-columns:1fr;gap:3px;padding:5px 0"><span class="sw txt" style="font-weight:400;width:auto;white-space:nowrap">printf("*ptr = %d\n", *ptr);  → 42</span><span>Hover a box, a field or an array slot: the printf lines that print its value and its address from the running function, and what they print now. Click it to pin them, with a Copy button per line (Esc lets go)</span></div>
   <div class="hrow"><span class="sw txt" style="font-size:11.5px;color:#5B6B82;border:1px solid #A9B6C6;border-radius:999px;background:#F1F5F9;padding:0 6px">read-only</span><span>A char * to a string literal: the text it points to lives in read-only memory</span></div>
@@ -2895,16 +2900,67 @@ function drawArrows(anim){                                       /* each pointer
   mem.insertAdjacentHTML("beforeend",`<svg class="arrows" style="width:${W}px;height:${H}px" viewBox="0 0 ${W} ${H}"><defs>${mk("a",AMB)}${mk("g",MUT)}${mk("r",BAD)}</defs>${low}${high}</svg>`);
 }
 
+/* ---------- predict: guess which boxes the next line changes, then see ---------- */
+let PREDICT=false;
+const PRED={ask:null,rev:null,right:0,total:0};                   /* ask: {from, to, picks}; rev: {step, res: key -> g|a|r} */
+function predTruth(a,b){                                         /* the boxes that change from step a to step b: variables, fields, slots, new or freed blocks */
+  const P=TRACE.steps[a], S=TRACE.steps[b], out=new Set(), H=x=>hx(x||"");
+  const diff=(x,y,o,w)=>{ const p=H(x).slice(o,o+w), q=H(y).slice(o,o+w); return p.length!==q.length||p.some((c,k)=>c!==q[k]); };
+  const slots=(key,x,y,base)=>{ const d=dimsOf(y.type), n=d?d.dims.reduce((t,v)=>t*(v||1),1):0, w=n?y.size/n:0;   /* an array: element by element */
+    if(!w||w!==Math.round(w)) return diff(x.bytes,y.bytes,0,1e9)&&out.add(key);
+    for(let k=0;k<Math.min(n,4096);k++) if(diff(x.bytes,y.bytes,(base||0)+k*w,w)) out.add(key+"|"+k); };
+  const fields=(o,x,y)=>FL(y).forEach(g=>{ if(g.fields||g.offset==null) return; const k="h:"+y.addr+":"+g.name;   /* a struct: field by field */
+    if(isArrF(g)){ const D=dimsOf(g.type), w=g.size/D.dims[0]; for(let j=0;j<D.dims[0];j++) if(diff(x.bytes,y.bytes,g.offset+j*w,w)) out.add(k+"|"+j); }
+    else if(diff(x.bytes,y.bytes,g.offset,g.size)||(!x.bytes&&String((FL(x).find(f=>f.name===g.name)||{}).value)!==String(g.value))) out.add(k); });
+  const pv=new Map(); P.frames.forEach(f=>f.vars.forEach(v=>pv.set(v.addr+"|"+f.func+"|"+v.name,v)));
+  S.frames.forEach(f=>f.vars.forEach(v=>{ const o=pv.get(v.addr+"|"+f.func+"|"+v.name); if(!o||!v.addr) return;
+    if(v.fields) fields(o,o,v); else if(arrDims(v)) slots("v:"+v.addr,o,v); else if(o.bytes!==v.bytes||o.value!==v.value) out.add("v:"+v.addr); }));
+  S.heap.forEach(n=>{ const o=P.heap.find(x=>x.addr===n.addr);
+    if(!o||!!o.freed!==!!n.freed){ out.add("b:"+n.addr); return; }  /* a new block, or one just freed */
+    if(n.freed) return;
+    if(n.kind==="array") slots("b:"+n.addr,o,n); else fields(o,o,n); });
+  return out;
+}
+const predUp=k=>{ const m=k.match(/^([vbh]):(\d+)(?::([^|]+))?(?:\|\d+)?$/); if(!m) return [];   /* the boxes a box sits in: a slot in its array, a field in its card */
+  const up=[]; if(m[3]){ const ps=m[3].split("."); for(let j=ps.length;j>0;j--){ const pk=`h:${m[2]}:${ps.slice(0,j).join(".")}`; if(pk!==k) up.push(pk); } up.push("b:"+m[2],"v:"+m[2]); }
+  else if(/\|/.test(k)) up.push(`${m[1]}:${m[2]}`);
+  return up; };
+function predReveal(to){                                         /* green: picked and changed; amber: changed, not picked; red: picked, didn't change */
+  const A=PRED.ask, T=predTruth(A.from,to), res=new Map();
+  T.forEach(k=>{ const by=[k,...predUp(k)].find(p=>A.picks.has(p)); if(by) res.set(by,"g"); else res.set(k,"a"); });
+  A.picks.forEach(p=>{ if(!res.has(p)) res.set(p,"r"); });
+  const g=[...res.values()].filter(v=>v==="g").length;
+  PRED.right+=g; PRED.total+=res.size; PRED.rev={step:to,res,line:(ranAt(to)||{}).line,g,n:res.size}; PRED.ask=null;
+}
+function predHTML(){
+  const sc=PREDICT&&PRED.total?`<div class="pscore" title="your predictions so far: boxes you got right, out of every box that changed or that you picked">Predict: ${PRED.right} of ${PRED.total} right</div>`:"";
+  if(!PREDICT) return "";
+  if(PRED.ask&&PRED.ask.from===at){ const l=TRACE.steps[at].line;
+    return sc+`<div class="pbar"><b>Predict:</b> which boxes will change on line ${l}? Click them (a variable, a field, an array slot, a heap card), then press <b>→</b> again. ${PRED.ask.picks.size?`<b>${PRED.ask.picks.size}</b> picked`:""}</div>`; }
+  if(PRED.rev&&PRED.rev.step===at){ const r=PRED.rev;
+    if(r.none) return sc+`<div class="pbar"><b>Predict:</b> nothing in memory changes on line ${r.line}, so there was nothing to guess.</div>`;
+    return sc+`<div class="pbar"><b>Predict:</b> ${r.g} of ${r.n} right on line ${r.line}.<span class="k" style="background:#15803D"></span>picked and changed<span class="k" style="background:${AMB}"></span>changed, not picked<span class="k" style="background:${BAD}"></span>picked, didn't change</div>`; }
+  return sc;
+}
+function predMarks(){                                            /* outline the picks, or the answer, on the picture */
+  const pic=$("pic"), svg=pic.querySelector("svg"); if(!svg||!PREDICT) return;
+  const box=k=>pic.querySelector(`[data-slot="${k}"]`)||pic.querySelector(`[data-box="${k}"]`);
+  const mark=(k,c,dash)=>{ const el=box(k); if(!el||!el.getBBox) return; const b=el.getBBox();
+    svg.insertAdjacentHTML("beforeend",`<rect class="predm" x="${b.x-4}" y="${b.y-4}" width="${b.width+8}" height="${b.height+8}" rx="7" fill="${c}" fill-opacity="0.10" stroke="${c}" stroke-width="3"${dash?' stroke-dasharray="6 4"':""} pointer-events="none"/>`); };
+  if(PRED.ask&&PRED.ask.from===at) PRED.ask.picks.forEach(k=>mark(k,"#1D4ED8",true));
+  else if(PRED.rev&&PRED.rev.step===at&&PRED.rev.res) PRED.rev.res.forEach((v,k)=>mark(k,v==="g"?"#15803D":v==="a"?AMB:BAD,false));
+}
 function render(){
   const s=TRACE.steps[at];
   const z=PZ==="fit"?null:+PZ/100, pic=$("pic");
-  pic.innerHTML=bugHTML(s)+caveatHTML(s)+wordsHTML()+leakHTML(s)+ladderHTML(s)+(view==="mem"?(z?`<div class="zo"><div class="zw" style="transform:scale(${z})">${renderMem(s)}</div></div>`:renderMem(s)):renderCards(s));
+  if(PRED.ask&&PRED.ask.from!==at) PRED.ask=null;                 /* moved some other way: the question is gone */
+  pic.innerHTML=predHTML()+bugHTML(s)+caveatHTML(s)+wordsHTML()+leakHTML(s)+ladderHTML(s)+(view==="mem"?(z?`<div class="zo"><div class="zw" style="transform:scale(${z})">${renderMem(s)}</div></div>`:renderMem(s)):renderCards(s));
   pic.querySelectorAll(".ladder").forEach(p=>p.style.zoom=z||1);
   if(view==="cards"){ const svg=pic.querySelector("svg"), vb=svg&&svg.getAttribute("viewBox");
     if(svg) svg.style.minWidth="0";                                                              /* the cards already wrap to fit */
     if(vb){ const W=+vb.split(" ")[2], zz=z||Math.max(0.8,(pic.clientWidth-20)/W);                      /* fit, but never below 80% */
       if(z||zz>(pic.clientWidth-20)/W){ svg.style.width=(W*zz)+"px"; svg.style.minWidth="0"; } } }
-  renderWatch(); showWatchBadges(); if(PIN) showPin(); tip._el=null;
+  renderWatch(); showWatchBadges(); if(PIN) showPin(); tip._el=null; predMarks();
   if(view==="mem"){ drawArrows(true);
     const zw=pic.querySelector(".zw"), zo=pic.querySelector(".zo"); if(zw&&zo){ zo.style.width=zw.offsetWidth*z+"px"; zo.style.height=zw.offsetHeight*z+"px"; } }
   const con=$("console"), prevOut=at>0?(TRACE.steps[at-1].out||""):"", outTxt=s.out||"";
@@ -2939,7 +2995,7 @@ function expandTrace(t){                                         /* a small trac
     P=st; });
 }
 function loadTrace(txt){
-  TRACE=JSON.parse(txt);
+  TRACE=JSON.parse(txt); PRED.ask=PRED.rev=null; PRED.right=PRED.total=0;   /* predict: a new score */
   expandTrace(TRACE);
   TRACE.steps.forEach(st=>{                       /* accept traces from the first trace.py */
     st.heap=(st.heap||[]).map(n=> n.fields ? n : {addr:n.addr, type:n.type||"struct", freed:false,
@@ -2964,10 +3020,17 @@ document.addEventListener("drop",e=>{
   e.preventDefault();
   for(const f of e.dataTransfer.files) readFile(f, /\.json(?:\.gz)?$/i.test(f.name)?loadTrace:setSrc);
 });
-const go=d=>{ if(!TRACE) return; let i=at+d;
+const go=(d,noAsk)=>{ if(!TRACE) return; let i=at+d;
   if(HEAPONLY||WONLY||BONLY){ const W=WONLY?WCH():null;                                   /* skip to the next step that matters */
     while(i>0&&i<TRACE.steps.length-1&&!((HEAPONLY&&TRACE.steps[i].hch)||(W&&W.has(i))||(BONLY&&TRACE.steps[i].bugs&&TRACE.steps[i].bugs.length))) i+=d; }
-  at=Math.max(0,Math.min(TRACE.steps.length-1,i)); draw(); };
+  i=Math.max(0,Math.min(TRACE.steps.length-1,i));
+  if(PREDICT&&d>0&&!noAsk&&i!==at){                               /* predict: ask first, then show how it went */
+    if(PRED.ask&&PRED.ask.from===at) predReveal(i);
+    else { const tr=predTruth(at,i); PRED.rev=null;
+      if(tr.size){ PRED.ask={from:at,to:i,picks:new Set()}; draw(); return; }
+      PRED.rev={step:i,none:true,line:(ranAt(i)||{}).line}; } }
+  else PRED.ask=null;
+  at=i; draw(); };
 function draw(){ try{ render(); const k=posKey(); if(k) try{ localStorage.setItem(k,String(at)); }catch(_){ } }catch(e){ $("pos").textContent="step "+(at+1)+" failed: "+e.message; console.error(e); } }
 function jumpFn(d){
   if(!TRACE) return;
@@ -2988,7 +3051,7 @@ $("vC").onclick=()=>setView("cards"); $("vM").onclick=()=>setView("mem");
 function play(){
   if(timer){ clearInterval(timer); timer=null; $("play").textContent="▶ Play"; return; }
   $("play").textContent="■ Pause";
-  timer=setInterval(()=>{ if(at>=TRACE.steps.length-1){ play(); return; } go(1); },600);
+  timer=setInterval(()=>{ if(at>=TRACE.steps.length-1){ play(); return; } go(1,true); },600);   /* playing never asks */
 }
 $("play").onclick=play;
 document.addEventListener("keydown",e=>{
@@ -3066,6 +3129,12 @@ function hoverBox(el){                                            /* outline the
     el.ownerSVGElement.insertAdjacentHTML("beforeend",`<rect class="hovbox" x="${bb.x-3}" y="${bb.y-3}" width="${bb.width+6}" height="${bb.height+6}" rx="8" fill="${REACH}" fill-opacity="0.06" stroke="${REACH}" stroke-width="2" pointer-events="none"/>`); }
   else el.classList.add("hovrow");
 }
+$("pic").addEventListener("click",e=>{                           /* predict: a click picks a box (or drops it) */
+  if(!PREDICT||!PRED.ask||PRED.ask.from!==at) return;
+  const el=e.target.closest("[data-slot],[data-box]"); if(!el) return;
+  const k=el.getAttribute("data-slot")||el.getAttribute("data-box").split(" ")[0]; if(!/^[vbh]:/.test(k)) return;
+  PRED.ask.picks.has(k)?PRED.ask.picks.delete(k):PRED.ask.picks.add(k);
+  e.stopImmediatePropagation(); draw(); },true);
 $("pic").addEventListener("click",e=>{
   if(e.target.closest(".lx")){ LADDER=null; draw(); return; }
   const pb=e.target.closest("[data-tip]"), bk=pb&&boxOf(pb);    /* a box: pin how to print it */
@@ -3098,15 +3167,16 @@ function help(on){ $("help").hidden=!on; if(on) $("helpX").focus(); }
 $("helpB").onclick=()=>help(true); $("helpX").onclick=()=>help(false);
 $("help").addEventListener("click",e=>{ if(e.target.id==="help") help(false); });
 function posKey(){ return TRACE?`mv.at.${TRACE.file||"trace"}.${TRACE.steps.length}`:null; }
-function saveSet(){ try{ localStorage.setItem("mv.set",JSON.stringify({simple,shade:SHADE,fint:FRAMEINT,lorder:LORDER,fold:FOLD,hstep:HEAPONLY,wstep:WONLY,bstep:BONLY,words:WORDS,view})); }catch(e){} }
+function saveSet(){ try{ localStorage.setItem("mv.set",JSON.stringify({simple,pred:$("predC").checked,shade:SHADE,fint:FRAMEINT,lorder:LORDER,fold:FOLD,hstep:HEAPONLY,wstep:WONLY,bstep:BONLY,words:WORDS,view})); }catch(e){} }
 function loadSet(){
-  const S={simple:true,shade:true,fint:true,lorder:false,fold:false,hstep:false,wstep:false,bstep:false,words:true,view:"cards"};
+  const S={simple:true,pred:false,shade:true,fint:true,lorder:false,fold:false,hstep:false,wstep:false,bstep:false,words:true,view:"cards"};
   try{ Object.assign(S,JSON.parse(localStorage.getItem("mv.set")||"{}")); }catch(e){}
-  simple=S.simple; SHADE=S.shade!==false; FRAMEINT=S.fint; LORDER=S.lorder; FOLD=S.fold; HEAPONLY=S.hstep; WONLY=S.wstep; BONLY=!!S.bstep; WORDS=S.words!==false;
+  simple=S.simple; PREDICT=!!S.pred; $("predC").checked=PREDICT; PRED.ask=PRED.rev=null; SHADE=S.shade!==false; FRAMEINT=S.fint; LORDER=S.lorder; FOLD=S.fold; HEAPONLY=S.hstep; WONLY=S.wstep; BONLY=!!S.bstep; WORDS=S.words!==false;
   [["simple",S.simple],["shadeC",S.shade!==false],["fint",S.fint],["lorder",S.lorder],["fold",S.fold],["hstep",S.hstep],["wstep",S.wstep],["bstep",S.bstep],["wordsC",S.words!==false]].forEach(([id,v])=>{ $(id).checked=!!v; });
   setView(S.view==="mem"?"mem":"cards");
 }
-["simple","shadeC","fint","lorder","fold","hstep","wstep","bstep","wordsC"].forEach(id=>$(id).addEventListener("change",saveSet));
+["simple","shadeC","fint","lorder","fold","hstep","wstep","bstep","wordsC","predC"].forEach(id=>$(id).addEventListener("change",saveSet));
+$("predC").addEventListener("change",e=>{ PREDICT=e.target.checked; PRED.ask=PRED.rev=null; if(TRACE) draw(); });
 $("bugB").onclick=()=>bugJump(1);
 $("reset").onclick=()=>{ try{ ["mv.set","mv.pz","mv.cz"].forEach(k=>localStorage.removeItem(k)); }catch(e){}
   PZ="fit"; CZ=100; $("pz").value="fit"; $("cz").value="100"; $("main").style.setProperty("--cz",1); loadSet(); if(TRACE) draw(); };
