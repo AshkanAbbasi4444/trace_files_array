@@ -35,5 +35,24 @@ Small C programs and their traces, to re-check `node_cards_viewer.html` and `tra
 | klist | kernel style: `struct list_head`, INIT_LIST_HEAD, list_add_tail, list_del, container_of with offsetof, `struct item { int val; struct list_head list; }`, a global LIST_HEAD and one on the stack |
 | bag_typedef | `typedef struct { int *data; int size; } Bag;` with no struct name: the Bag card (it didn't show before) and its data array |
 | ring | `struct ring { int buf[5]; int n; }` filled in a loop on the stack and malloc'd (and `int seen[20]` for "+4 more"): array fields as slots, `r->buf[2]` |
+| double_free | frees the same block twice (once in a helper, once in main): the "free(0x100) a second time" banner on line 14; glibc aborts |
+| bad_free | frees the address of a stack variable: the "that address never came from malloc" banner; glibc aborts |
+| null_read | reads through a NULL next pointer: "Segmentation fault on line 12: tried to read address 0x0 (NULL): second was NULL", second outlined red |
+| use_after_free | reads a block after free(): no crash, the use-after-free banner |
+| heap_overflow_free | writes 3 ints past a 500-int block, then frees it: glibc aborts with "free(): invalid next size (normal)" |
+| print200 | a loop that prints 200 lines: only the new output is stored per step (`out_add`); `print200.json.gz` opens in the viewer too |
+| add | `int add(int a, int b)` called from main: turn on **assembly** in View to see each line's instructions and the registers (rsp and rbp move into add's frame and back) |
+| add_insn | the same program traced with `STEP_INSN = True`: one step per machine instruction (open it with `add.c`); mid-line steps say "still running this line: instruction 3 of 4 ran" |
 
 `../remove_element.json` was made by the older trace.py: it checks old traces still open the same.
+
+Traces are written small: each step stores only the output that is new (`out_add`), and a frame, a heap block,
+the chunk list or the globals that didn't change since the step before is just `{"same_as_prev": true}`.
+The viewer puts it all back when it opens the trace, and also opens the `.json.gz` that trace.py writes next to it.
+Set `COMPACT = False` at the top of trace.py for the full form. Sizes, every program here traced again:
+all of them together went from 5.08 MB to 1.90 MB as .json, or 60 KB as .json.gz (tree.json: 1.28 MB → 209 KB → 4.4 KB).
+With each line's machine code and the registers added, the full form of all of them is 7.08 MB, the small .json 2.72 MB
+and the .json.gz 128 KB (tree: 1.24 MB → 247 KB → 7.4 KB; the same programs without them were 6.17 MB in full form).
+The traces already in this folder keep their old, full form: they check that old traces still open the same.
+print200, add, add_insn and null_read are traced with the newest trace.py (small form, plus the machine code and registers);
+null_read's last step shows the instruction that crashed, `mov (%rax),%eax` with rax = 0.

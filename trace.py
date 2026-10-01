@@ -1,4 +1,4 @@
-import gdb, json, os, re
+import gdb, gzip, json, os, re
 
 START     = "main"
 MAX_STEPS = 4000
@@ -7,6 +7,8 @@ CHUNK_MAX = 400
 FRAME_MAX = 512                        # most bytes of one stack frame to record
 STDOUT    = "prog_stdout.txt"
 WATCH_MAX = 4                          # x86-64 CPUs have 4 hardware watchpoints, 8 bytes each
+COMPACT   = True                       # smaller traces: only the new output per step, "same_as_prev" for what didn't change
+STEP_INSN = False                      # True: one machine instruction per step (stepi) instead of one line: for small programs
 
 ARR_BYTES = 2048                       # most bytes of one heap array to record
 steps, KNOWN, FREED = [], {}, set()   # KNOWN: addr -> ("struct", name) or ("array", element type, element size)
@@ -14,6 +16,7 @@ ALLOCED = set()                        # every address malloc/calloc/realloc han
 REQ, HOW, COPIED = {}, {}, {}          # addr -> bytes asked for, which call gave it, bytes realloc carried over
 ROOTS = []                             # (value, what it points to) for every pointer variable on this step
 FREE_ORDER = []                        # addresses in the order free() got them, newest last
+EVENTS = []                            # bugs trace.py saw since the last snapshot: double free, bad free, a signal
 LIBCALLS = []                          # library calls since the last snapshot, and what the watchpoints caught
 WPS = []                               # the watchpoints armed right now
 watch_ok = True                        # False once the CPU refuses a hardware watchpoint
@@ -77,7 +80,14 @@ class Free(gdb.Breakpoint):
     def __init__(self): super().__init__("free", internal=True)
     def stop(self):
         try:
-            a = int(gdb.parse_and_eval("$rdi")); FREED.add(a); FREE_ORDER.append(a)
+            a = int(gdb.parse_and_eval("$rdi"))
+            if a:                                                # free(NULL) does nothing: fine
+                if a in FREED: EVENTS.append({"kind": "double free", "addr": a})
+                else:
+                    try: caller = gdb.newest_frame().older()
+                    except gdb.error: caller = None
+                    if caller and ours(caller) and a not in ALLOCED: EVENTS.append({"kind": "bad free", "addr": a})   # your code freed something malloc never gave
+            FREED.add(a); FREE_ORDER.append(a)
         except Exception: pass
         return False
 
@@ -493,6 +503,24 @@ def literal(a):
     if end < 0: out["cstr_cut"] = True
     return out
 
+ASM = {}                               # a line's first address -> its machine instructions, written once as "asm_lines"
+REGS = ("rip", "rsp", "rbp", "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "eflags")
+
+def machine(f):
+    """the machine instructions of the line frame f is on, the next one to run (pc), and the registers right now"""
+    try:
+        pc = f.pc(); sal = gdb.find_pc_line(pc); start, last = sal.pc or pc, sal.last or pc
+        key = "%x" % start
+        if key not in ASM:
+            try: fs = f.block().function and f.block()
+            except RuntimeError: fs = None
+            while fs and not fs.function: fs = fs.superblock
+            base = fs.start if fs else start                         # the function's first instruction: offsets like add+18
+            ASM[key] = {"line": sal.line, "func": f.name(), "insns": [{"addr": i["addr"], "text": i["asm"], "off": i["addr"] - base}
+                                                                    for i in f.architecture().disassemble(start, last)][:64]}
+        return {"pc": pc, "asm_at": key, "regs": {r: int(f.read_register(r)) for r in REGS}}
+    except (gdb.error, RuntimeError, ValueError): return {}
+
 def into(frames, glob, heap):
     """a pointer into the middle of a struct block (like &item->list): "into": {"addr": the block, "field": "list"}"""
     blocks = [b for b in heap if b.get("kind") != "array" and not b["freed"]]
@@ -548,10 +576,36 @@ def snapshot():
           "heap": heap, "chunks": chunks, "ret": ret, "out": console(),
           "lib": [c for c in LIBCALLS if c["writes"] or c["func"] in ALLOCS or c["partial"]]}   # what the watchpoints caught
     if glob: st["globals"] = glob
+    if EVENTS: st["events"] = EVENTS[:]; del EVENTS[:]           # what went wrong on the line that just ran
+    mf = frame
+    while mf and not ours(mf): mf = mf.older()                  # crashed inside libc: your line's instructions
+    if mf: st.update(machine(mf))
     steps.append(st)
     del LIBCALLS[:]
 
 class NoWatch(Exception): pass
+class Crashed(Exception): pass
+DIED = []                              # the signal that stopped the program, once it has
+
+def on_stop(ev):
+    """a signal (SIGSEGV, SIGABRT …): remember it, and for a bad address, which address"""
+    if not isinstance(ev, gdb.SignalEvent): return
+    e = {"kind": "signal", "name": ev.stop_signal}
+    if ev.stop_signal in ("SIGSEGV", "SIGBUS"):
+        try: e["addr"] = int(gdb.parse_and_eval("(unsigned long) $_siginfo._sifields._sigfault.si_addr"))
+        except (gdb.error, RuntimeError): pass
+    EVENTS.append(e); DIED.append(e)
+
+def crash_snapshot():
+    """the program is dying: one last picture of your frames, on the line of yours that was running"""
+    for e in EVENTS: e["pending"] = True
+    snapshot()
+    st = steps[-1]; f = gdb.selected_frame(); where = f.name()
+    while f and not ours(f): f = f.older()                   # the newest frame in your file
+    if f:
+        st["line"], st["func"] = f.find_sal().line, f.name()
+        st["crash"] = {"line": st["line"], "func": st["func"], "in": where}   # in: the function it died inside (raise, free …)
+
 def run(cmd):
     try: t = gdb.execute(cmd, to_string=True)
     except gdb.error as e:
@@ -561,13 +615,15 @@ def run(cmd):
 
 def advance():
     """run one line of your code; library code runs to the end without stopping"""
-    run("step")
+    run("stepi" if STEP_INSN else "step")
+    if DIED: raise Crashed()
     while not in_our_file():
         run("finish")
+        if DIED: raise Crashed()
 
 gdb.execute("set pagination off"); gdb.execute("set confirm off")
 gdb.execute("break " + START)
-gdb.execute("run > " + STDOUT)
+gdb.execute("run > %s 2>&1" % STDOUT)                    # stderr too: glibc says why it aborted there
 our_file = gdb.selected_frame().find_sal().symtab.filename
 OUR_TYPES = our_types()
 try:
@@ -581,6 +637,7 @@ Free()
 for pc, fn, line in lib_calls():
     try: LibCall(pc, fn, line)
     except (gdb.error, RuntimeError): pass
+gdb.events.stop.connect(on_stop)
 
 for _ in range(MAX_STEPS):
     try:
@@ -589,11 +646,41 @@ for _ in range(MAX_STEPS):
         except NoWatch:                                     # this CPU can't: finish the line without watchpoints
             disarm(); watch_ok = False; del LIBCALLS[:]
             advance()
+    except Crashed:                                         # a signal: the last picture, then stop
+        disarm()
+        try: crash_snapshot()
+        except gdb.error: pass
+        break
     except gdb.error:
         break
     finally:
         disarm()
 
+if EVENTS and steps:                                         # the program died inside a line: what we saw goes on the last step
+    steps[-1].setdefault("events", []).extend(dict(e, pending=True) for e in EVENTS); del EVENTS[:]
+def compact(steps):
+    """the same steps, smaller: "out_add" is only the output that's new since the step before (the viewer adds
+       them up), and a frame, a heap block, the chunk list or the globals that didn't change is {"same_as_prev": true}"""
+    out, prev = [], None
+    for st in steps:
+        c = dict(st); full = c.pop("out", ""); pfull = prev["out"] if prev else ""
+        if full.startswith(pfull):
+            if full != pfull: c["out_add"] = full[len(pfull):]
+        else: c["out"] = full                                     # the output was rewritten: keep all of it
+        if prev:
+            for k in ("chunks", "globals"):
+                if k in c and c[k] == prev.get(k): del c[k]; c[k + "_same_as_prev"] = True
+            pf, n = prev["frames"], len(st["frames"])                  # frames line up from main, the oldest
+            c["frames"] = [{"same_as_prev": True} if 0 <= len(pf) - n + k and pf[len(pf) - n + k] == f else f for k, f in enumerate(st["frames"])]
+            if "regs" in c and "regs" in prev:                         # only the registers that changed
+                c["regs"] = {k: v for k, v in c["regs"].items() if prev["regs"].get(k) != v}; c["regs_delta"] = True
+            ph = {b["addr"]: b for b in prev["heap"]}
+            c["heap"] = [{"addr": b["addr"], "same_as_prev": True} if ph.get(b["addr"]) == b else b for b in st["heap"]]
+        out.append(c); prev = st
+    return out
+
 out = os.path.splitext(os.path.basename(gdb.current_progspace().filename))[0] + ".json"
-with open(out, "w") as fh: json.dump({"file": our_file, "allocs_tracked": True, "watchpoints": watch_ok, "steps": steps}, fh)
-print("wrote %s with %d steps" % (out, len(steps)))
+doc = {"file": our_file, "allocs_tracked": True, "watchpoints": watch_ok, "steps": compact(steps) if COMPACT else steps, "asm_lines": ASM}
+with open(out, "w") as fh: json.dump(doc, fh, separators=(",", ":"))
+with gzip.open(out + ".gz", "wt") as fh: json.dump(doc, fh, separators=(",", ":"))   # the viewer opens this one too
+print("wrote %s and %s.gz with %d steps" % (out, out, len(steps)))
