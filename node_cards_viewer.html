@@ -330,6 +330,7 @@ button.icon{width:30px;padding:4px 0;font-weight:700;border-radius:50%}
   <div class="hrow" style="grid-template-columns:1fr;gap:3px;padding:5px 0"><svg width="190" height="62" aria-hidden="true" font-family="'IBM Plex Sans',system-ui,sans-serif" font-size="11.5"><rect x="70" y="2" width="44" height="20" rx="4" fill="#fff" stroke="#A9B6C6"/><rect x="20" y="38" width="44" height="20" rx="4" fill="#fff" stroke="#A9B6C6"/><rect x="120" y="38" width="44" height="20" rx="4" fill="#fff" stroke="#A9B6C6"/><path d="M80,22 C80,30 42,30 42,37 M104,22 C104,30 142,30 142,37" stroke="#5B6B82" stroke-width="1.4" fill="none"/></svg><span>A tree: a struct with <b>left</b> and <b>right</b> (or <b>lchild</b>, <b>rchild</b>) pointers to its own type. Root on top, children below, left to right in in-order. A dashed <b>NULL</b> stub under a missing child. Several trees sit side by side; other blocks follow below. Lists stay in a row</span></div>
   <div class="hrow" style="grid-template-columns:1fr;gap:3px;padding:5px 0"><svg width="190" height="58" aria-hidden="true" font-family="'IBM Plex Mono',ui-monospace,Menlo,monospace" font-size="11.5"><rect x="1" y="1" width="150" height="56" rx="8" fill="#fff" stroke="#A9B6C6"/><text x="9" y="15" fill="#5B6B82">val</text><text x="142" y="15" text-anchor="end" font-weight="800" fill="#14213D">7</text><rect x="6" y="20" width="140" height="33" rx="5" fill="#F6F8FB" stroke="#D5DDE6"/><text x="12" y="33" font-weight="700" fill="#5B6B82">pos</text><text x="20" y="48" fill="#5B6B82">x</text><text x="138" y="48" text-anchor="end" font-weight="800" fill="#5B6B82">??</text></svg><span>A struct inside a struct: a box of its own inside the card (or the variable's box), with its own fields, highlights and ?? until set. Named like <b>item-&gt;pos.x</b>, <b>(*item).pos.x</b> and <b>&amp;item-&gt;pos</b>. A struct variable on the stack shows its fields one per line</span></div>
   <div class="hrow" style="grid-template-columns:1fr;gap:3px;padding:5px 0"><svg width="190" height="60" aria-hidden="true"><rect x="2" y="20" width="60" height="30" rx="6" fill="#fff" stroke="#A9B6C6"/><rect x="100" y="20" width="60" height="30" rx="6" fill="#fff" stroke="#A9B6C6"/><path d="M50,50 C50,60 112,60 112,53" stroke="#5B6B82" stroke-width="1.5" fill="none"/><path d="M108,49 L112,55 L116,49z" fill="#5B6B82"/><path d="M140,20 C140,4 48,4 48,15" stroke="#B91C1C" stroke-width="1.8" fill="none"/><path d="M44,13 L48,19 L52,13z" fill="#B91C1C"/></svg><span>A doubly linked list (<b>next</b> and <b>prev</b>): cards in next order, <b>next</b> arrows below, <b>prev</b> arrows above; the list line reads <b>1 ⇄ 2 ⇄ 3 → NULL</b>. A <b>red</b> arrow and a ⚠ note: a node whose prev (or next) doesn't point back, like <i>0x200's prev doesn't point back to 0x100</i></span></div>
+  <div class="hrow" style="grid-template-columns:1fr;gap:3px;padding:5px 0"><span class="sw txt" style="font-size:11.5px;width:auto;white-space:nowrap">head: 1 → 2 → 3 → (back to 1)</span><span>A circular list: following next comes back to the first node. Its cards are in next order and the last arrow curves back under them to the first card</span></div>
   <div class="hrow"><span class="sw txt" style="font-weight:400;color:#5B6B82">at 0x…</span><span>Under every box: the address where it lives (the simple one, or the real one: see View)</span></div>
   <div class="hrow" style="grid-template-columns:1fr;gap:3px;padding:5px 0"><span class="sw txt" style="font-weight:400;width:auto;white-space:nowrap">printf("*ptr = %d\n", *ptr);  → 42</span><span>Hover a box, a field or an array slot: the printf lines that print its value and its address from the running function, and what they print now. Click it to pin them, with a Copy button per line (Esc lets go)</span></div>
   <div class="hrow"><span class="sw txt" style="font-size:11.5px;color:#5B6B82;border:1px solid #A9B6C6;border-radius:999px;background:#F1F5F9;padding:0 6px">read-only</span><span>A char * to a string literal: the text it points to lives in read-only memory</span></div>
@@ -1386,28 +1387,39 @@ function listLines(s){
   s.heap.forEach(n=>{ byA[n.addr]=n; const lk=linksOf(n); if(!n.freed&&R.has(n.addr)) (n.fields||[]).forEach(f=>{ if(f.kind==="ptr"&&f.value&&!(lk&&f===lk.prev)) pointedAt.add(f.value); }); });   /* a prev link doesn't make a node "not the head" */
   const nextOf=n=>{ const lk=linksOf(n); return lk?lk.next:null; }, prevOf=n=>{ const lk=linksOf(n); return lk?lk.prev:null; };
   const valOf=n=>{ const f=(n.fields||[]).find(f=>f.kind==="int"); return f?String(f.value):show(n.addr); };
+  const ring=a=>{ const seen=new Set(); let p=a;                /* following next comes back to a: the nodes on the way, else null */
+    while(p&&byA[p]&&!byA[p].freed&&!seen.has(p)&&seen.size<200){ seen.add(p); const nx=nextOf(byA[p]); p=nx?nx.value:0; }
+    return p===a&&seen.size?seen:null; };
+  const circ=new Map();                                          /* a circular list: one line, from the best-named variable that points into it */
   s.frames.forEach(f=>f.vars.forEach(v=>{                        /* a list starts where a variable points and no node does */
     if(!v.struct||v.init===false||!v.value) return;
-    const n=byA[v.value]; if(!n||(!n.freed&&(pointedAt.has(v.value)||!nextOf(n)))) return;
+    const n=byA[v.value], who=(f===inner?"":f.func+"'s ")+v.name;
+    if(n&&!n.freed&&pointedAt.has(v.value)&&nextOf(n)){ const rg=ring(v.value); if(!rg) return;
+      const key=Math.min(...rg), sc=/^(?:head|first|list|start|root|ring|circle)$/.test(v.name)?0:1, c=circ.get(key);
+      if(!c||sc<c.sc) circ.set(key,{start:v.value,names:[who],sc}); else if(c.start===v.value&&!c.names.includes(who)) c.names.push(who);
+      return; }
+    if(!n||(!n.freed&&(pointedAt.has(v.value)||!nextOf(n)))) return;
     (heads[v.value]=heads[v.value]||[]).push((f===inner?"":f.func+"'s ")+v.name);
   }));
+  const circS=new Set(); circ.forEach(c=>{ circS.add(c.start); heads[c.start]=c.names; });
   const said=new Set();                                          /* each broken pair is told once */
   return Object.entries(heads).map(([a,names])=>{
-    let p=+a, parts=[], seps=[], end="NULL", bad=false, dbl=false; const seen=new Set(), notes=[];
+    let p=+a, parts=[], seps=[], end="NULL", bad=false, dbl=false, last=0, tail=0; const seen=new Set(), notes=[];
     while(p){
       const n=byA[p];
       if(!n){ end=`${show(p)} (not a block)`; bad=true; break; }
       if(n.freed){ end=`${show(p)} (freed!)`; bad=true; break; }
-      if(seen.has(p)){ end=`cycle! back to ${valOf(n)}`; bad=true; break; }
+      if(seen.has(p)){ if(p===+a&&circS.has(p)){ end=`(back to ${valOf(n)})`; last=seen.size; break; } end=`cycle! back to ${valOf(n)}`; bad=true; break; }   /* a circular list: fine */
       seen.add(p); parts.push(valOf(n));
       if(parts.length>40){ end="…"; break; }
-      const nx=nextOf(n), pv=prevOf(n); p=nx?nx.value:0; if(pv) dbl=true;
+      const nx=nextOf(n), pv=prevOf(n); tail=n.addr; p=nx?nx.value:0; if(pv) dbl=true;
       const m=byA[p], pm=m&&!m.freed&&prevOf(m); seps.push(pv&&pm&&pm.value===n.addr?" ⇄ ":" → ");   /* 1 ⇄ 2: they point at each other */
       [nx&&"h:"+n.addr+":"+nx.name,pv&&"h:"+n.addr+":"+pv.name,pm&&"h:"+p+":"+pm.name].forEach(k=>{ const t=k&&DC.bad.get(k); if(t&&!said.has(t)){ said.add(t); notes.push(t); } });
     }
-    if(!dbl) return {head:+a, names:names.join(", "), text:parts.concat([end]).join(" → "), count:parts.length, bad};
-    seps[seps.length-1]=" → ";                                     /* the last one: → NULL */
-    return {head:+a, names:names.join(", "), text:parts.map((x,k)=>x+seps[k]).join("")+end, count:parts.length, bad:bad||notes.length>0, notes, dbl};
+    const cl=last?{circ:true,back:"h:"+tail+":"+nextOf(byA[tail]).name}:{};   /* back: the arrow that closes the circle */
+    if(!dbl) return {head:+a, names:names.join(", "), text:parts.concat([end]).join(" → "), count:parts.length, bad, ...cl};
+    if(!last) seps[seps.length-1]=" → ";                           /* the last one: → NULL */
+    return {head:+a, names:names.join(", "), text:parts.map((x,k)=>x+seps[k]).join("")+end, count:parts.length, bad:bad||notes.length>0, notes, dbl, ...cl};
   });
 }
 function heapOrder(s,blocks){                                     /* lay the cards out along the lists, so arrows stop crossing */
@@ -2080,7 +2092,7 @@ function renderCards(s){
   const blocks=s.heap.filter(n=>!hset.has(n.addr)), ordered=LORDER?heapOrder(s,blocks):blocks;
   const items=[...ordered.map(n=>({n,a:n.addr})),...(s.chunks||[]).filter(c=>!own.has(c.addr)).map(c=>({c,a:c.addr}))];
   if(!LORDER) items.sort((p,q)=>p.a-q.a);
-  const DLL=LL.filter(l=>l.dbl);
+  const DLL=LL.filter(l=>l.dbl||l.circ), BACK=new Set(LL.filter(l=>l.circ).map(l=>l.back));   /* doubly linked or circular: in next order */
   if(!LORDER&&DLL.length){                                        /* a doubly linked list: its cards in next order, where its first card would be */
     const inL=new Map(), out=[], done=new Set(), byI=new Map(items.filter(it=>it.n).map(it=>[it.n.addr,it]));
     [...DLL].sort((a,b)=>b.count-a.count).forEach((l,k)=>{ let p=l.head; while(p&&byI.has(p)&&!inL.has(p)){ inL.set(p,k); const lk=linksOf(byI.get(p).n); p=lk&&lk.next.value; } });   /* the longest list first: a node half-way through an insert stays in it */
@@ -2138,7 +2150,7 @@ function renderCards(s){
   const sizes=[...new Set(s.heap.map(n=>n.size).filter(Boolean))];
   LLN.forEach((l,k)=>{ o+=l.note?`<text x="28" y="${HY-30-18*(LLN.length-k)}" font-size="12" font-weight="700" fill="${BAD}" paint-order="stroke" stroke="#fff" stroke-width="4">⚠ ${esc(l.note)}</text>`   /* a broken prev/next pair */
     :`<text x="16" y="${HY-30-18*(LLN.length-k)}" font-size="12" fill="${l.bad?BAD:INK}" ${MONO} paint-order="stroke" stroke="#fff" stroke-width="4"><tspan font-weight="700">${esc(l.names)}:</tspan> ${esc(l.text)} ${l.count?`<tspan fill="${MUT}">(${l.count} node${l.count===1?"":"s"})</tspan>`:""}</text>`; });   /* list lines */
-  const heapNote=`${sizes.length===1?sizes[0]+"-byte blocks":"blocks"}, ${LORDER?"in list order":"in address order (list order is set by next)"}`+(TRS.length?" · trees: root on top":"")+(DLL.length?" · doubly linked: next below, prev above":"")+(GRIDS.length?" · grids: row pointers on the left":"");
+  const heapNote=`${sizes.length===1?sizes[0]+"-byte blocks":"blocks"}, ${LORDER?"in list order":"in address order (list order is set by next)"}`+(TRS.length?" · trees: root on top":"")+(LL.some(l=>l.dbl)?" · doubly linked: next below, prev above":"")+(BACK.size?" · circular: the last arrow goes back to the first":"")+(GRIDS.length?" · grids: row pointers on the left":"");
   o+=`<text x="16" y="${HY-30}" font-size="15" font-weight="600" fill="${INK}">Heap<tspan dx="10" font-size="11.5" font-weight="400" fill="${MUT}">${heapNote}</tspan></text>`;
   if(inner){
     o+=`<text x="300" y="21" font-size="11.5" font-weight="700" fill="${REACH}">Blue shows how ${esc(inner.func)} gets there. Hover it to follow it.</text>`;   /* next to the title, so it's always in view */
@@ -2376,10 +2388,11 @@ function renderCards(s){
         return; }
       const C=CH.has(key), I=!C&&TT.inv.has(key), F=TT.on&&!C&&!I, col=C?AMB:I?INK:MUT;
       const x1=cx[n.addr]+CW-20, x2=cx[fd.value]+20, by=cy[n.addr]+CARDH;
-      const d=20+Math.abs(cx[fd.value]-cx[n.addr])/STEP*12+j*10, bc=bk?BAD:col;   /* a next whose node doesn't point back: red */
-      arrows+=`<path data-arrow="${key}" d="${link(x1,n.addr,x2,fd.value,d)}" fill="none" ${C&&!bk?'pathLength="1" class="draw"':""} stroke="${bc}" stroke-width="${C||I||bk?2.4:1.5}" stroke-linecap="round" marker-end="url(#m${bk?"r":C?"a":I?"k":"g"})"${F&&!bk?DIM:""}${bk?` data-tip="${esc(bk)}"`:""}/>`+
+      const bb=BACK.has(key), d=(bb?36:20)+Math.abs(cx[fd.value]-cx[n.addr])/STEP*(bb?16:12)+j*10, bc=bk?BAD:col;   /* a next whose node doesn't point back: red. Back to the first: a deeper curve */
+      arrows+=`<path data-arrow="${key}" d="${link(x1,n.addr,x2,fd.value,d)}" fill="none" ${C&&!bk?'pathLength="1" class="draw"':""} stroke="${bc}" stroke-width="${C||I||bk?2.4:1.5}" stroke-linecap="round" marker-end="url(#m${bk?"r":C?"a":I?"k":"g"})"${F&&!bk?DIM:""}${bk?` data-tip="${esc(bk)}"`:bb?` data-tip="${esc(`${fd.name} of ${show(n.addr)} goes back to ${show(fd.value)}, the first node: the list is circular, so a walk never reaches NULL`)}"`:""}/>`+
         `<circle cx="${x1}" cy="${by}" r="3.4" fill="${bc}"${F&&!bk?DIM:""}/>`;
       labels+=cy[n.addr]===cy[fd.value]?star("b:"+fd.value,x2+6,by+17,"start",F):star("b:"+fd.value,x2+64,cy[fd.value]-4,"start",F);
+      if(bb&&!(C||I)){ const ly=Math.max(by+d*0.75+14,lastLy+18); lastLy=ly; low=Math.max(low,ly+14); labels+=label("back to the first: circular",(x1+x2)/2,ly,col); }
       if(C||I){ const ly=Math.max(by+Math.max(d*0.75+16,30),lastLy+18); lastLy=ly; low=Math.max(low,ly+14);
         labels+=typeTag(fd.type,x1+5,by+12,col,false)+label(`${fd.name} ${C?"now points to":"is how we reach"} ${show(fd.value)}`,(x1+x2)/2,ly,col); }
     });

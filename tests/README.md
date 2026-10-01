@@ -30,5 +30,6 @@ Small C programs and their traces, to re-check `node_cards_viewer.html` and `tra
 | nested | `struct item2 { int val; struct point pos; struct item2 *next; }`: a malloc'd list of 2 and one on the stack, `it->pos.x`, `local.pos.y` |
 | dlist | a 4-node doubly linked list built by hand, one node inserted in the middle and one deleted: next arrows below, prev above, `1 ⇄ 2 ⇄ 3`, the half-done links in red while it inserts |
 | dlist_broken | the same list with `c->prev = a` (should be b): a red prev arrow and "0x300's prev doesn't point back to 0x200" |
+| circular | a circular singly linked list of 3 nodes, walked with do/while, then cut and freed: `head: 1 → 2 → 3 → (back to 1)` and the last arrow curving back |
 
 `../remove_element.json` was made by the older trace.py: it checks old traces still open the same.
