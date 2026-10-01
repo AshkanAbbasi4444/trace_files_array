@@ -41,6 +41,8 @@ Small C programs and their traces, to re-check `node_cards_viewer.html` and `tra
 | use_after_free | reads a block after free(): no crash, the use-after-free banner |
 | heap_overflow_free | writes 3 ints past a 500-int block, then frees it: glibc aborts with "free(): invalid next size (normal)" |
 | print200 | a loop that prints 200 lines: only the new output is stored per step (`out_add`); `print200.json.gz` opens in the viewer too |
+| add | `int add(int a, int b)` called from main: turn on **assembly** in View to see each line's instructions and the registers (rsp and rbp move into add's frame and back) |
+| add_insn | the same program traced with `STEP_INSN = True`: one step per machine instruction (open it with `add.c`); mid-line steps say "still running this line: instruction 3 of 4 ran" |
 
 `../remove_element.json` was made by the older trace.py: it checks old traces still open the same.
 
@@ -49,4 +51,8 @@ the chunk list or the globals that didn't change since the step before is just `
 The viewer puts it all back when it opens the trace, and also opens the `.json.gz` that trace.py writes next to it.
 Set `COMPACT = False` at the top of trace.py for the full form. Sizes, every program here traced again:
 all of them together went from 5.08 MB to 1.90 MB as .json, or 60 KB as .json.gz (tree.json: 1.28 MB → 209 KB → 4.4 KB).
+With each line's machine code and the registers added, the full form of all of them is 7.08 MB, the small .json 2.72 MB
+and the .json.gz 128 KB (tree: 1.24 MB → 247 KB → 7.4 KB; the same programs without them were 6.17 MB in full form).
 The traces already in this folder keep their old, full form: they check that old traces still open the same.
+print200, add, add_insn and null_read are traced with the newest trace.py (small form, plus the machine code and registers);
+null_read's last step shows the instruction that crashed, `mov (%rax),%eax` with rax = 0.

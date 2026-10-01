@@ -8,6 +8,7 @@ FRAME_MAX = 512                        # most bytes of one stack frame to record
 STDOUT    = "prog_stdout.txt"
 WATCH_MAX = 4                          # x86-64 CPUs have 4 hardware watchpoints, 8 bytes each
 COMPACT   = True                       # smaller traces: only the new output per step, "same_as_prev" for what didn't change
+STEP_INSN = False                      # True: one machine instruction per step (stepi) instead of one line: for small programs
 
 ARR_BYTES = 2048                       # most bytes of one heap array to record
 steps, KNOWN, FREED = [], {}, set()   # KNOWN: addr -> ("struct", name) or ("array", element type, element size)
@@ -502,6 +503,24 @@ def literal(a):
     if end < 0: out["cstr_cut"] = True
     return out
 
+ASM = {}                               # a line's first address -> its machine instructions, written once as "asm_lines"
+REGS = ("rip", "rsp", "rbp", "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "eflags")
+
+def machine(f):
+    """the machine instructions of the line frame f is on, the next one to run (pc), and the registers right now"""
+    try:
+        pc = f.pc(); sal = gdb.find_pc_line(pc); start, last = sal.pc or pc, sal.last or pc
+        key = "%x" % start
+        if key not in ASM:
+            try: fs = f.block().function and f.block()
+            except RuntimeError: fs = None
+            while fs and not fs.function: fs = fs.superblock
+            base = fs.start if fs else start                         # the function's first instruction: offsets like add+18
+            ASM[key] = {"line": sal.line, "func": f.name(), "insns": [{"addr": i["addr"], "text": i["asm"], "off": i["addr"] - base}
+                                                                    for i in f.architecture().disassemble(start, last)][:64]}
+        return {"pc": pc, "asm_at": key, "regs": {r: int(f.read_register(r)) for r in REGS}}
+    except (gdb.error, RuntimeError, ValueError): return {}
+
 def into(frames, glob, heap):
     """a pointer into the middle of a struct block (like &item->list): "into": {"addr": the block, "field": "list"}"""
     blocks = [b for b in heap if b.get("kind") != "array" and not b["freed"]]
@@ -558,6 +577,9 @@ def snapshot():
           "lib": [c for c in LIBCALLS if c["writes"] or c["func"] in ALLOCS or c["partial"]]}   # what the watchpoints caught
     if glob: st["globals"] = glob
     if EVENTS: st["events"] = EVENTS[:]; del EVENTS[:]           # what went wrong on the line that just ran
+    mf = frame
+    while mf and not ours(mf): mf = mf.older()                  # crashed inside libc: your line's instructions
+    if mf: st.update(machine(mf))
     steps.append(st)
     del LIBCALLS[:]
 
@@ -593,7 +615,7 @@ def run(cmd):
 
 def advance():
     """run one line of your code; library code runs to the end without stopping"""
-    run("step")
+    run("stepi" if STEP_INSN else "step")
     if DIED: raise Crashed()
     while not in_our_file():
         run("finish")
@@ -650,13 +672,15 @@ def compact(steps):
                 if k in c and c[k] == prev.get(k): del c[k]; c[k + "_same_as_prev"] = True
             pf, n = prev["frames"], len(st["frames"])                  # frames line up from main, the oldest
             c["frames"] = [{"same_as_prev": True} if 0 <= len(pf) - n + k and pf[len(pf) - n + k] == f else f for k, f in enumerate(st["frames"])]
+            if "regs" in c and "regs" in prev:                         # only the registers that changed
+                c["regs"] = {k: v for k, v in c["regs"].items() if prev["regs"].get(k) != v}; c["regs_delta"] = True
             ph = {b["addr"]: b for b in prev["heap"]}
             c["heap"] = [{"addr": b["addr"], "same_as_prev": True} if ph.get(b["addr"]) == b else b for b in st["heap"]]
         out.append(c); prev = st
     return out
 
 out = os.path.splitext(os.path.basename(gdb.current_progspace().filename))[0] + ".json"
-doc = {"file": our_file, "allocs_tracked": True, "watchpoints": watch_ok, "steps": compact(steps) if COMPACT else steps}
+doc = {"file": our_file, "allocs_tracked": True, "watchpoints": watch_ok, "steps": compact(steps) if COMPACT else steps, "asm_lines": ASM}
 with open(out, "w") as fh: json.dump(doc, fh, separators=(",", ":"))
 with gzip.open(out + ".gz", "wt") as fh: json.dump(doc, fh, separators=(",", ":"))   # the viewer opens this one too
 print("wrote %s and %s.gz with %d steps" % (out, out, len(steps)))
