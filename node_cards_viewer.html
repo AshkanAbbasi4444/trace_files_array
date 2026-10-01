@@ -303,7 +303,7 @@ button.icon{width:30px;padding:4px 0;font-weight:700;border-radius:50%}
     <button id="reset" class="mr">Reset to defaults</button>
    </div></span>
  </div>
- <input type="file" id="fT" accept=".json" hidden><input type="file" id="fC" accept=".c,.h,.txt" hidden>
+ <input type="file" id="fT" accept=".json,.gz" hidden><input type="file" id="fC" accept=".c,.h,.txt" hidden>
 </div>
 <div id="help" class="help" hidden role="dialog" aria-modal="true" aria-label="What the marks mean"><div class="hb">
  <button class="hx icon" id="helpX" title="Close (Esc)" aria-label="Close">×</button>
@@ -372,7 +372,7 @@ button.icon{width:30px;padding:4px 0;font-weight:700;border-radius:50%}
   <div class="hrow"><span><kbd>←</kbd><kbd>→</kbd></span><span>Step (<kbd>Space</kbd> plays, <kbd>V</kbd> switches view, <kbd>?</kbd> opens this, <kbd>Esc</kbd> closes)</span></div>
  </div></div>
 </div></div>
-<div id="drop" class="drop"><b>Drop your trace here</b><br>Make one with <code>gdb -q -nx -batch -x trace.py ./prog</code><br><br>Drop your <b>.c</b> file too, to see each line as it runs.</div>
+<div id="drop" class="drop"><b>Drop your trace here</b> (<b>.json</b> or <b>.json.gz</b>)<br>Make one with <code>gdb -q -nx -batch -x trace.py ./prog</code><br><br>Drop your <b>.c</b> file too, to see each line as it runs.</div>
 <div class="main" id="main" style="display:none">
   <pre id="code"></pre>
   <div><div id="watch" class="watch" hidden><div class="wh"><b>Watch</b><select id="wfn" aria-label="in which function"></select><input id="wex" type="text" placeholder="head->next" aria-label="expression to watch" spellcheck="false"><button id="wadd">Add</button><span class="wn" id="wnote"></span></div><div id="wlist"></div></div><div id="pic"></div><div class="ol">Program output</div><pre id="console"></pre><div class="hint"><span><kbd>←</kbd><kbd>→</kbd> step</span><span><kbd>Space</kbd> play</span><span><kbd>V</kbd> switch view</span><span>Click a variable to see its ladder</span><span>Hover an expression to follow it</span><span>Click a code line to jump to it</span><span><kbd>?</kbd> what the marks mean</span></div></div>
@@ -2924,8 +2924,23 @@ function render(){
   }
 }
 /* ---------- loading and controls ---------- */
+function expandTrace(t){                                         /* a small trace: out_add -> out, and "same as the step before" -> a copy of it */
+  const cp=x=>x===undefined?x:structuredClone(x);
+  let P=null, out="";
+  t.steps.forEach(st=>{
+    if(st.out===undefined) st.out=out+(st.out_add||"");               /* only the new text was stored */
+    out=st.out;
+    if(P){
+      if(st.chunks_same_as_prev) st.chunks=cp(P.chunks);
+      if(st.globals_same_as_prev) st.globals=cp(P.globals);
+      st.frames=(st.frames||[]).map((f,k)=>f.same_as_prev?cp(P.frames[P.frames.length-st.frames.length+k]):f);   /* frames line up from main */
+      st.heap=(st.heap||[]).map(b=>b.same_as_prev?cp(P.heap.find(x=>x.addr===b.addr)):b);
+    }
+    P=st; });
+}
 function loadTrace(txt){
   TRACE=JSON.parse(txt);
+  expandTrace(TRACE);
   TRACE.steps.forEach(st=>{                       /* accept traces from the first trace.py */
     st.heap=(st.heap||[]).map(n=> n.fields ? n : {addr:n.addr, type:n.type||"struct", freed:false,
       fields:[{name:"val",type:"int",kind:"int",value:n.val},{name:"next",type:"ptr",kind:"ptr",value:n.next}]});
@@ -2938,14 +2953,16 @@ function loadTrace(txt){
   $("slider").max=TRACE.steps.length-1; draw();
 }
 function setSrc(t){ SRC=t.split("\n"); FNL=null; EXC=new Map(); if(TRACE){ markInit(TRACE); markArrInit(TRACE); markFieldInit(TRACE); markBugs(TRACE); WATCH.forEach(w=>w.vals=null); draw(); } }
-function readFile(f,cb){ const r=new FileReader(); r.onload=()=>cb(r.result); r.readAsText(f); }
+function readFile(f,cb){                                         /* a .json, a .json.gz (unzipped here), or a .c */
+  if(/\.gz$/i.test(f.name)&&typeof DecompressionStream!=="undefined"){ new Response(f.stream().pipeThrough(new DecompressionStream("gzip"))).text().then(cb,e=>{ $("pos").textContent="couldn't unzip "+f.name+": "+e.message; }); return; }
+  const r=new FileReader(); r.onload=()=>cb(r.result); r.readAsText(f); }
 $("openT").onclick=()=>$("fT").click(); $("openC").onclick=()=>$("fC").click();
 $("fT").onchange=e=>readFile(e.target.files[0],loadTrace);
 $("fC").onchange=e=>readFile(e.target.files[0],setSrc);
 document.addEventListener("dragover",e=>e.preventDefault());
 document.addEventListener("drop",e=>{
   e.preventDefault();
-  for(const f of e.dataTransfer.files) readFile(f, f.name.endsWith(".json")?loadTrace:setSrc);
+  for(const f of e.dataTransfer.files) readFile(f, /\.json(?:\.gz)?$/i.test(f.name)?loadTrace:setSrc);
 });
 const go=d=>{ if(!TRACE) return; let i=at+d;
   if(HEAPONLY||WONLY||BONLY){ const W=WONLY?WCH():null;                                   /* skip to the next step that matters */

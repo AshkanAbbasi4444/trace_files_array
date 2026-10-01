@@ -40,5 +40,13 @@ Small C programs and their traces, to re-check `node_cards_viewer.html` and `tra
 | null_read | reads through a NULL next pointer: "Segmentation fault on line 12: tried to read address 0x0 (NULL): second was NULL", second outlined red |
 | use_after_free | reads a block after free(): no crash, the use-after-free banner |
 | heap_overflow_free | writes 3 ints past a 500-int block, then frees it: glibc aborts with "free(): invalid next size (normal)" |
+| print200 | a loop that prints 200 lines: only the new output is stored per step (`out_add`); `print200.json.gz` opens in the viewer too |
 
 `../remove_element.json` was made by the older trace.py: it checks old traces still open the same.
+
+Traces are written small: each step stores only the output that is new (`out_add`), and a frame, a heap block,
+the chunk list or the globals that didn't change since the step before is just `{"same_as_prev": true}`.
+The viewer puts it all back when it opens the trace, and also opens the `.json.gz` that trace.py writes next to it.
+Set `COMPACT = False` at the top of trace.py for the full form. Sizes, every program here traced again:
+all of them together went from 5.08 MB to 1.90 MB as .json, or 60 KB as .json.gz (tree.json: 1.28 MB → 209 KB → 4.4 KB).
+The traces already in this folder keep their old, full form: they check that old traces still open the same.

@@ -1,4 +1,4 @@
-import gdb, json, os, re
+import gdb, gzip, json, os, re
 
 START     = "main"
 MAX_STEPS = 4000
@@ -7,6 +7,7 @@ CHUNK_MAX = 400
 FRAME_MAX = 512                        # most bytes of one stack frame to record
 STDOUT    = "prog_stdout.txt"
 WATCH_MAX = 4                          # x86-64 CPUs have 4 hardware watchpoints, 8 bytes each
+COMPACT   = True                       # smaller traces: only the new output per step, "same_as_prev" for what didn't change
 
 ARR_BYTES = 2048                       # most bytes of one heap array to record
 steps, KNOWN, FREED = [], {}, set()   # KNOWN: addr -> ("struct", name) or ("array", element type, element size)
@@ -635,6 +636,27 @@ for _ in range(MAX_STEPS):
 
 if EVENTS and steps:                                         # the program died inside a line: what we saw goes on the last step
     steps[-1].setdefault("events", []).extend(dict(e, pending=True) for e in EVENTS); del EVENTS[:]
+def compact(steps):
+    """the same steps, smaller: "out_add" is only the output that's new since the step before (the viewer adds
+       them up), and a frame, a heap block, the chunk list or the globals that didn't change is {"same_as_prev": true}"""
+    out, prev = [], None
+    for st in steps:
+        c = dict(st); full = c.pop("out", ""); pfull = prev["out"] if prev else ""
+        if full.startswith(pfull):
+            if full != pfull: c["out_add"] = full[len(pfull):]
+        else: c["out"] = full                                     # the output was rewritten: keep all of it
+        if prev:
+            for k in ("chunks", "globals"):
+                if k in c and c[k] == prev.get(k): del c[k]; c[k + "_same_as_prev"] = True
+            pf, n = prev["frames"], len(st["frames"])                  # frames line up from main, the oldest
+            c["frames"] = [{"same_as_prev": True} if 0 <= len(pf) - n + k and pf[len(pf) - n + k] == f else f for k, f in enumerate(st["frames"])]
+            ph = {b["addr"]: b for b in prev["heap"]}
+            c["heap"] = [{"addr": b["addr"], "same_as_prev": True} if ph.get(b["addr"]) == b else b for b in st["heap"]]
+        out.append(c); prev = st
+    return out
+
 out = os.path.splitext(os.path.basename(gdb.current_progspace().filename))[0] + ".json"
-with open(out, "w") as fh: json.dump({"file": our_file, "allocs_tracked": True, "watchpoints": watch_ok, "steps": steps}, fh)
-print("wrote %s with %d steps" % (out, len(steps)))
+doc = {"file": our_file, "allocs_tracked": True, "watchpoints": watch_ok, "steps": compact(steps) if COMPACT else steps}
+with open(out, "w") as fh: json.dump(doc, fh, separators=(",", ":"))
+with gzip.open(out + ".gz", "wt") as fh: json.dump(doc, fh, separators=(",", ":"))   # the viewer opens this one too
+print("wrote %s and %s.gz with %d steps" % (out, out, len(steps)))
