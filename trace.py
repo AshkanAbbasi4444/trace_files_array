@@ -24,11 +24,24 @@ USED = []                              # (start, usable bytes) of every used hea
 def is_ptr(t):  return t.strip_typedefs().code == gdb.TYPE_CODE_PTR
 def scalar(t):  return t.strip_typedefs().code in (gdb.TYPE_CODE_INT, gdb.TYPE_CODE_ENUM,
                                                    gdb.TYPE_CODE_CHAR, gdb.TYPE_CODE_BOOL)
+TYPES = {}                             # struct key -> gdb.Type, so an anonymous typedef struct can be found again
+def sname(t):
+    """the key a struct type is recorded and found by: "struct node", or the typedef name of an anonymous one ("Bag")"""
+    s = t.strip_typedefs(); n = str(s)
+    if "{...}" in n:                                     # typedef struct { ... } Bag: no struct name of its own
+        u = t.unqualified()
+        n = str(u) if u.code == gdb.TYPE_CODE_TYPEDEF else next((k for k, v in TYPES.items() if v == s), "%s #%d" % (n, len(TYPES) + 1))
+    TYPES[n] = s
+    return n
+def lookup(name):
+    """a struct type back from its key"""
+    return TYPES.get(name) or gdb.lookup_type(name)
 def struct_of(t):
+    """the name of the struct a pointer of type t points to, or None"""
     t = t.strip_typedefs()
     if t.code != gdb.TYPE_CODE_PTR: return None
     tgt = t.target().strip_typedefs()
-    return tgt if tgt.code == gdb.TYPE_CODE_STRUCT else None
+    return sname(t.target()) if tgt.code == gdb.TYPE_CODE_STRUCT else None
 def raw(addr, size):
     """size bytes at addr, as hex, lowest address first"""
     if not addr or size <= 0: return None
@@ -177,7 +190,7 @@ def ptr_desc(t):
         t = t.strip_typedefs()
         if t.code != gdb.TYPE_CODE_PTR: return None
         tgt = t.target().strip_typedefs()
-        if tgt.code == gdb.TYPE_CODE_STRUCT: return ("struct", str(tgt))
+        if tgt.code == gdb.TYPE_CODE_STRUCT: return ("struct", sname(t.target()))
         if scalar(tgt) and tgt.sizeof in (1, 2, 4, 8): return ("array", str(tgt.unqualified()), tgt.sizeof)
         if tgt.code == gdb.TYPE_CODE_PTR: return ("array", str(t.target().strip_typedefs().unqualified()), 8, ptr_desc(tgt))   # a pointer array
     except gdb.error: pass
@@ -228,7 +241,7 @@ def ptr_values(v, t, depth=1):
             for x in ptr_values(fv, ft, depth + 1): yield x
 
 def read_block(addr, stname):
-    t = gdb.lookup_type(stname)
+    t = lookup(stname)
     v = gdb.Value(addr).cast(t.pointer()).dereference()
     fields = fields_of(v, t)
     return {"addr": addr, "type": stname, "fields": fields, "freed": False,
@@ -254,7 +267,7 @@ def var_entry(out, sym, v):
     out.append({"name": sym.name, "type": str(t), "addr": a,
                 "value": int(v) if (is_ptr(t) or scalar(t)) else None,
                 "kind": "ptr" if is_ptr(t) else ("int" if scalar(t) else "other"),
-                "struct": str(st) if st else None,
+                "struct": st,
                 "size": t.sizeof, "bytes": raw(a, t.sizeof),
                 "arg": bool(sym.is_argument),      # parameters start with real values
                 "target": str(t.strip_typedefs().target()) if is_ptr(t) else None,   # one star down
@@ -311,8 +324,8 @@ def our_types():
     for sym in st.static_block():
         try:
             if sym.addr_class != gdb.SYMBOL_LOC_TYPEDEF or not sym.symtab or sym.symtab.filename != our_file: continue
-            t = sym.type.strip_typedefs()
-            if t.code in (gdb.TYPE_CODE_STRUCT, gdb.TYPE_CODE_UNION) and str(t) not in seen and t.sizeof: seen.add(str(t)); out.append(t)
+            t = sym.type.strip_typedefs(); k = sname(sym.type)
+            if t.code in (gdb.TYPE_CODE_STRUCT, gdb.TYPE_CODE_UNION) and k not in seen and t.sizeof: seen.add(k); out.append((k, t))
         except (gdb.error, RuntimeError): pass
     return out
 
@@ -333,10 +346,10 @@ def container(p, tname):
         if c < p < c + size: break
     else: return None
     want = REQ.get(c, size); best = None
-    for t in OUR_TYPES:
+    for k, t in OUR_TYPES:
         if t.sizeof > size or not field_path(t, p - c, tname): continue
-        if best is None or abs(t.sizeof - want) < abs(best.sizeof - want): best = t    # the one closest to what was malloc'd
-    return (c, str(best)) if best is not None else None
+        if best is None or abs(t.sizeof - want) < abs(best[1].sizeof - want): best = (k, t)   # the one closest to what was malloc'd
+    return (c, best[0]) if best is not None else None
 
 def signature(frame):
     """the function's C signature, like: void remove_elements_ref(struct ListNode **head, int val)"""
@@ -381,7 +394,7 @@ def discover(roots, starts, locals_):
             except gdb.error: continue
             KNOWN[addr] = d
             try:
-                t = gdb.lookup_type(d[1])
+                t = lookup(d[1])
                 ps = list(ptr_values(gdb.Value(addr).cast(t.pointer()).dereference(), t))   # pointers in nested structs too
             except gdb.error: ps = []
             for p, fk in ps:
@@ -488,7 +501,7 @@ def into(frames, glob, heap):
         if x.get("kind") != "ptr" or not p: return
         for b in blocks:
             if b["addr"] < p < b["addr"] + b["size"]:
-                try: path = field_path(gdb.lookup_type(b["type"]), p - b["addr"], tname)
+                try: path = field_path(lookup(b["type"]), p - b["addr"], tname)
                 except gdb.error: path = None
                 if path: x["into"] = {"addr": b["addr"], "field": path}
                 return
