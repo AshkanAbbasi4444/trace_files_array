@@ -27,5 +27,13 @@ Small C programs and their traces, to re-check `node_cards_viewer.html` and `tra
 | board | `char board[3][3]` filled with '.', then one 'X': a char grid on the stack |
 | pairs | `struct pair { int val; int idx; } a[4]` filled in a loop: a little card per slot, each field ?? until set |
 | grid2d | `int grid[2][3]` and `int *ps[2] = {grid[0], grid[1]}`: a 2D grid on the stack and an arrow from each pointer slot |
+| nested | `struct item2 { int val; struct point pos; struct item2 *next; }`: a malloc'd list of 2 and one on the stack, `it->pos.x`, `local.pos.y` |
+| dlist | a 4-node doubly linked list built by hand, one node inserted in the middle and one deleted: next arrows below, prev above, `1 ⇄ 2 ⇄ 3`, the half-done links in red while it inserts |
+| dlist_broken | the same list with `c->prev = a` (should be b): a red prev arrow and "0x300's prev doesn't point back to 0x200" |
+| circular | a circular singly linked list of 3 nodes, walked with do/while, then cut and freed: `head: 1 → 2 → 3 → (back to 1)` and the last arrow curving back |
+| rho | a 5-node list whose tail points back to node 2 (a "ρ"), walked 8 steps, then cut: `head: 1 → 2 → 3 → 4 → 5 → (back to 2)`, the loop arrow and "↻ loop start" |
+| klist | kernel style: `struct list_head`, INIT_LIST_HEAD, list_add_tail, list_del, container_of with offsetof, `struct item { int val; struct list_head list; }`, a global LIST_HEAD and one on the stack |
+| bag_typedef | `typedef struct { int *data; int size; } Bag;` with no struct name: the Bag card (it didn't show before) and its data array |
+| ring | `struct ring { int buf[5]; int n; }` filled in a loop on the stack and malloc'd (and `int seen[20]` for "+4 more"): array fields as slots, `r->buf[2]` |
 
 `../remove_element.json` was made by the older trace.py: it checks old traces still open the same.

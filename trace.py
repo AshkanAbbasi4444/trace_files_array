@@ -18,15 +18,30 @@ LIBCALLS = []                          # library calls since the last snapshot, 
 WPS = []                               # the watchpoints armed right now
 watch_ok = True                        # False once the CPU refuses a hardware watchpoint
 our_file = None
+OUR_TYPES = []                         # the struct and union types this program defines: candidates for container_of
+USED = []                              # (start, usable bytes) of every used heap chunk on this step
 
 def is_ptr(t):  return t.strip_typedefs().code == gdb.TYPE_CODE_PTR
 def scalar(t):  return t.strip_typedefs().code in (gdb.TYPE_CODE_INT, gdb.TYPE_CODE_ENUM,
                                                    gdb.TYPE_CODE_CHAR, gdb.TYPE_CODE_BOOL)
+TYPES = {}                             # struct key -> gdb.Type, so an anonymous typedef struct can be found again
+def sname(t):
+    """the key a struct type is recorded and found by: "struct node", or the typedef name of an anonymous one ("Bag")"""
+    s = t.strip_typedefs(); n = str(s)
+    if "{...}" in n:                                     # typedef struct { ... } Bag: no struct name of its own
+        u = t.unqualified()
+        n = str(u) if u.code == gdb.TYPE_CODE_TYPEDEF else next((k for k, v in TYPES.items() if v == s), "%s #%d" % (n, len(TYPES) + 1))
+    TYPES[n] = s
+    return n
+def lookup(name):
+    """a struct type back from its key"""
+    return TYPES.get(name) or gdb.lookup_type(name)
 def struct_of(t):
+    """the name of the struct a pointer of type t points to, or None"""
     t = t.strip_typedefs()
     if t.code != gdb.TYPE_CODE_PTR: return None
     tgt = t.target().strip_typedefs()
-    return tgt if tgt.code == gdb.TYPE_CODE_STRUCT else None
+    return sname(t.target()) if tgt.code == gdb.TYPE_CODE_STRUCT else None
 def raw(addr, size):
     """size bytes at addr, as hex, lowest address first"""
     if not addr or size <= 0: return None
@@ -175,7 +190,7 @@ def ptr_desc(t):
         t = t.strip_typedefs()
         if t.code != gdb.TYPE_CODE_PTR: return None
         tgt = t.target().strip_typedefs()
-        if tgt.code == gdb.TYPE_CODE_STRUCT: return ("struct", str(tgt))
+        if tgt.code == gdb.TYPE_CODE_STRUCT: return ("struct", sname(t.target()))
         if scalar(tgt) and tgt.sizeof in (1, 2, 4, 8): return ("array", str(tgt.unqualified()), tgt.sizeof)
         if tgt.code == gdb.TYPE_CODE_PTR: return ("array", str(t.target().strip_typedefs().unqualified()), 8, ptr_desc(tgt))   # a pointer array
     except gdb.error: pass
@@ -196,19 +211,39 @@ def read_array(addr, elem, esize):
     if req <= ARR_BYTES and csz > req: out["slack"] = raw(addr + req, csz - req)   # up to and including the next header
     return out
 
-def read_block(addr, stname):
-    t = gdb.lookup_type(stname)
-    v = gdb.Value(addr).cast(t.pointer()).dereference()
+NEST_MAX = 3                           # levels of structs inside structs to record
+def is_rec(t): return t.strip_typedefs().code in (gdb.TYPE_CODE_STRUCT, gdb.TYPE_CODE_UNION)
+
+def fields_of(v, t, depth=1):
+    """the fields of struct (or union) value v: name, type, kind, value, offset (from the start of v), size, target.
+       A field that is a struct or union itself also gets its own "fields", NEST_MAX levels deep"""
     fields = []
-    for f in t.fields():
+    for f in t.strip_typedefs().fields():
         if f.name is None: continue
         fv = v[f.name]; ft = fv.type.strip_typedefs()
         if ft.code == gdb.TYPE_CODE_PTR:   kind, val = "ptr", int(fv)
         elif scalar(ft):                   kind, val = "int", int(fv)
         else:                              kind, val = "other", None
-        fields.append({"name": f.name, "type": str(f.type), "kind": kind, "value": val,
-                       "offset": f.bitpos // 8, "size": f.type.sizeof,
-                       "target": str(ft.target()) if kind == "ptr" else None})
+        fd = {"name": f.name, "type": str(f.type), "kind": kind, "value": val,
+              "offset": f.bitpos // 8, "size": f.type.sizeof,
+              "target": str(ft.target()) if kind == "ptr" else None}
+        if is_rec(ft) and depth < NEST_MAX: fd["fields"] = fields_of(fv, ft, depth + 1)   # struct point pos: x and y
+        fields.append(fd)
+    return fields
+
+def ptr_values(v, t, depth=1):
+    """every pointer inside struct value v, nested structs too, in field order: (value, what it leads to)"""
+    for f in t.strip_typedefs().fields():
+        if f.name is None: continue
+        fv = v[f.name]; ft = fv.type.strip_typedefs()
+        if ft.code == gdb.TYPE_CODE_PTR: yield int(fv), ptr_desc(ft)
+        elif is_rec(ft) and depth < NEST_MAX:
+            for x in ptr_values(fv, ft, depth + 1): yield x
+
+def read_block(addr, stname):
+    t = lookup(stname)
+    v = gdb.Value(addr).cast(t.pointer()).dereference()
+    fields = fields_of(v, t)
     return {"addr": addr, "type": stname, "fields": fields, "freed": False,
             "size": t.sizeof, "bytes": raw(addr, t.sizeof),
             "header": raw(addr - 16, 16)}          # malloc's chunk header
@@ -225,40 +260,96 @@ def frame_mem(frame, vars_):
         return {"rbp": rbp, "rsp": rsp, "lo": lo, "frame_bytes": raw(lo, rbp + 16 - lo)}
     except (gdb.error, ValueError): return {}
 
+def var_entry(out, sym, v):
+    """one variable's record, appended to out; its pointers become ROOTS"""
+    t = v.type; st = struct_of(t)
+    a = int(v.address) if v.address else None
+    out.append({"name": sym.name, "type": str(t), "addr": a,
+                "value": int(v) if (is_ptr(t) or scalar(t)) else None,
+                "kind": "ptr" if is_ptr(t) else ("int" if scalar(t) else "other"),
+                "struct": st,
+                "size": t.sizeof, "bytes": raw(a, t.sizeof),
+                "arg": bool(sym.is_argument),      # parameters start with real values
+                "target": str(t.strip_typedefs().target()) if is_ptr(t) else None,   # one star down
+                "decl": sym.line})                 # the line it was declared on
+    d = ptr_desc(t)
+    if d and is_ptr(t): ROOTS.append((int(v), d))
+    if is_rec(t):                                        # a struct on the stack: its fields, nested ones too
+        out[-1]["fields"] = fields_of(v, t)
+        for p, pd in ptr_values(v, t):                     # and what its pointers lead to: a list_head on the stack is a list's head
+            if p and pd: ROOTS.append((p, pd))
+    at = t.strip_typedefs()
+    if at.code == gdb.TYPE_CODE_ARRAY:
+        et = at.target().strip_typedefs(); ed = ptr_desc(et)
+        if ed and et.code == gdb.TYPE_CODE_PTR:            # int *ps[3]: each element can lead to a heap block
+            for k in range(min(at.sizeof // 8, 64)): ROOTS.append((int(v[k]), ed))
+        base = at
+        while base.code == gdb.TYPE_CODE_ARRAY: base = base.target().strip_typedefs()
+        if base.code == gdb.TYPE_CODE_STRUCT:                # struct pair a[5]: what each element holds
+            out[-1]["elem_fields"] = [{"name": f.name, "type": str(f.type), "offset": f.bitpos // 8, "size": f.type.sizeof,
+                                       "kind": "ptr" if is_ptr(f.type) else ("int" if scalar(f.type) else "other")}
+                                      for f in base.fields() if f.name]
+            out[-1]["elem_size"] = base.sizeof
+
 def collect_vars(frame):
     out, block = [], frame.block()
     while block and not block.is_static:
         for sym in block:
             if not (sym.is_variable or sym.is_argument): continue
-            try:
-                v = sym.value(frame); t = v.type; st = struct_of(t)
-                a = int(v.address) if v.address else None
-                out.append({"name": sym.name, "type": str(t), "addr": a,
-                            "value": int(v) if (is_ptr(t) or scalar(t)) else None,
-                            "kind": "ptr" if is_ptr(t) else ("int" if scalar(t) else "other"),
-                            "struct": str(st) if st else None,
-                            "size": t.sizeof, "bytes": raw(a, t.sizeof),
-                            "arg": bool(sym.is_argument),      # parameters start with real values
-                            "target": str(t.strip_typedefs().target()) if is_ptr(t) else None,   # one star down
-                            "decl": sym.line})                 # the line it was declared on
-                d = ptr_desc(t)
-                if d and is_ptr(t): ROOTS.append((int(v), d))
-                at = t.strip_typedefs()
-                if at.code == gdb.TYPE_CODE_ARRAY:
-                    et = at.target().strip_typedefs(); ed = ptr_desc(et)
-                    if ed and et.code == gdb.TYPE_CODE_PTR:            # int *ps[3]: each element can lead to a heap block
-                        for k in range(min(at.sizeof // 8, 64)): ROOTS.append((int(v[k]), ed))
-                    base = at
-                    while base.code == gdb.TYPE_CODE_ARRAY: base = base.target().strip_typedefs()
-                    if base.code == gdb.TYPE_CODE_STRUCT:                # struct pair a[5]: what each element holds
-                        out[-1]["elem_fields"] = [{"name": f.name, "type": str(f.type), "offset": f.bitpos // 8, "size": f.type.sizeof,
-                                                   "kind": "ptr" if is_ptr(f.type) else ("int" if scalar(f.type) else "other")}
-                                                  for f in base.fields() if f.name]
-                        out[-1]["elem_size"] = base.sizeof
+            try: var_entry(out, sym, sym.value(frame))
             except gdb.error: pass
         if block.function: break
         block = block.superblock
     return out
+
+def collect_globals():
+    """our file's global and static variables, in the same shape as a frame's"""
+    out = []
+    try: st = gdb.selected_frame().find_sal().symtab
+    except gdb.error: return out
+    if not st: return out
+    for blk in (st.global_block(), st.static_block()):
+        for sym in blk:
+            if not sym.is_variable or not sym.symtab or sym.symtab.filename != our_file: continue
+            try: var_entry(out, sym, sym.value())
+            except gdb.error: pass
+    for v in out: v["global"] = True
+    return out
+
+def our_types():
+    """the struct and union types our own file defines"""
+    out, seen = [], set()
+    try: st = gdb.selected_frame().find_sal().symtab
+    except gdb.error: return out
+    for sym in st.static_block():
+        try:
+            if sym.addr_class != gdb.SYMBOL_LOC_TYPEDEF or not sym.symtab or sym.symtab.filename != our_file: continue
+            t = sym.type.strip_typedefs(); k = sname(sym.type)
+            if t.code in (gdb.TYPE_CODE_STRUCT, gdb.TYPE_CODE_UNION) and k not in seen and t.sizeof: seen.add(k); out.append((k, t))
+        except (gdb.error, RuntimeError): pass
+    return out
+
+def field_path(t, off, tname):
+    """the field of struct t at byte offset off whose type is tname, as a path like "list" or "a.list", or None"""
+    for f in t.strip_typedefs().fields():
+        if f.name is None: continue
+        fo, ft = f.bitpos // 8, f.type.strip_typedefs()
+        if fo == off and str(ft.unqualified()) == tname: return f.name
+        if is_rec(ft) and fo <= off < fo + ft.sizeof:
+            sub = field_path(ft, off - fo, tname)
+            if sub: return f.name + "." + sub
+    return None
+
+def container(p, tname):
+    """p points INTO a used heap chunk, at a tname: (chunk start, the struct of ours that holds a tname there), or None"""
+    for c, size in USED:
+        if c < p < c + size: break
+    else: return None
+    want = REQ.get(c, size); best = None
+    for k, t in OUR_TYPES:
+        if t.sizeof > size or not field_path(t, p - c, tname): continue
+        if best is None or abs(t.sizeof - want) < abs(best[1].sizeof - want): best = (k, t)   # the one closest to what was malloc'd
+    return (c, best[0]) if best is not None else None
 
 def signature(frame):
     """the function's C signature, like: void remove_elements_ref(struct ListNode **head, int val)"""
@@ -279,16 +370,11 @@ def returned(name):
         return {"func": name, "type": str(rt), "value": int(gdb.parse_and_eval("$rax").cast(rt))}
     except (gdb.error, AttributeError, TypeError, RuntimeError): return None
 
-def field_descs(stname):
-    """field name -> what that pointer field leads to"""
-    try: return {f.name: ptr_desc(f.type) for f in gdb.lookup_type(stname).fields() if f.name}
-    except gdb.error: return {}
-
 def discover(roots, starts, locals_):
     """remember every block reachable from these pointers, following each pointer field by its own type.
        Structs first, then int and char arrays, so a struct is never read as an array of its first field.
        starts: where real malloc'd blocks start (None if the memory map can't be read), so leftover pointers can't invent one"""
-    real = lambda a: starts is None or a in starts or a in locals_
+    real = lambda a: a not in locals_ and (starts is None or a in starts)
     queue = [r for r in roots if r[1][0] == "struct"]
     arrays = [r for r in roots if r[1][0] == "array"]
     seen = set()
@@ -297,16 +383,22 @@ def discover(roots, starts, locals_):
             addr, d = queue.pop(0)
             if not addr or addr in seen or addr in FREED: continue
             if addr in KNOWN: d = KNOWN[addr]                  # known already: still follow its fields, they may be new
-            elif len(KNOWN) >= NODE_MAX or not real(addr): continue
+            elif len(KNOWN) >= NODE_MAX: continue
+            elif not real(addr):
+                c = d[0] == "struct" and starts is not None and container(addr, d[1])
+                if c and c[0] not in seen: queue.append((c[0], ("struct", c[1])))   # &item->list: the item that holds it
+                continue
             if d[0] != "struct": continue
             seen.add(addr)
             try: b = read_block(addr, d[1])
             except gdb.error: continue
             KNOWN[addr] = d
-            fd = field_descs(d[1])
-            for f in b["fields"]:
-                fk = fd.get(f["name"])
-                if f["kind"] == "ptr" and f["value"] and fk: (queue if fk[0] == "struct" else arrays).append((f["value"], fk))
+            try:
+                t = lookup(d[1])
+                ps = list(ptr_values(gdb.Value(addr).cast(t.pointer()).dereference(), t))   # pointers in nested structs too
+            except gdb.error: ps = []
+            for p, fk in ps:
+                if p and fk: (queue if fk[0] == "struct" else arrays).append((p, fk))
         while arrays:                                          # an int *, char * or int ** at the start of a used chunk
             addr, d = arrays.pop(0)
             if not addr or addr in seen or addr in FREED: continue
@@ -401,6 +493,25 @@ def literal(a):
     if end < 0: out["cstr_cut"] = True
     return out
 
+def into(frames, glob, heap):
+    """a pointer into the middle of a struct block (like &item->list): "into": {"addr": the block, "field": "list"}"""
+    blocks = [b for b in heap if b.get("kind") != "array" and not b["freed"]]
+    def mark(x, tname):
+        p = x.get("value")
+        if x.get("kind") != "ptr" or not p: return
+        for b in blocks:
+            if b["addr"] < p < b["addr"] + b["size"]:
+                try: path = field_path(lookup(b["type"]), p - b["addr"], tname)
+                except gdb.error: path = None
+                if path: x["into"] = {"addr": b["addr"], "field": path}
+                return
+    def walk(fs):
+        for f in fs or []:
+            mark(f, (f.get("target") or "").strip()); walk(f.get("fields"))
+    for v in [v for fr in frames for v in fr["vars"]] + glob:
+        mark(v, (v.get("target") or "").strip()); walk(v.get("fields"))
+    for b in blocks: walk(b["fields"])
+
 def snapshot():
     del ROOTS[:]
     frame = gdb.selected_frame(); sal = frame.find_sal()
@@ -414,8 +525,9 @@ def snapshot():
         f = f.older()
     chunks = chunks_now()
     starts = {c["addr"] for c in chunks if c["state"] == "used"}       # where real malloc'd blocks start
-    locals_ = {v["addr"] for fr in frames for v in fr["vars"]            # structs living on the stack
-               if v["kind"] == "other" and v["type"].startswith("struct ") and "[" not in v["type"]}
+    del USED[:]; USED.extend((c["addr"], c["size"] - 8) for c in chunks if c["state"] == "used")
+    glob = collect_globals()
+    locals_ = {v["addr"] for fr in frames for v in fr["vars"] if v["addr"]} | {v["addr"] for v in glob if v["addr"]}   # stack and global variables are never heap blocks
     seen_heap = chunks or maps_of(int(frame.read_register("rsp")))   # no heap yet: then only structs on the stack can be blocks
     discover(ROOTS, starts if seen_heap else None, locals_)
     for fr in frames:                                          # char * to a string literal: its text
@@ -427,12 +539,16 @@ def snapshot():
                 b = bytes.fromhex(v["bytes"]); ws = [int.from_bytes(b[k:k + 8], "little") for k in range(0, len(b) - 7, 8)]
                 lits = [literal(p) if p else None for p in ws[:64]]
                 if any(lits): v["cstrs"] = [{"text": x["cstr"], "ro": x["cstr_ro"]} if x else None for x in lits]
+    heap = heap_now()
+    into(frames, glob, heap)
     ret = None
     if steps and len(frames) < len(steps[-1]["frames"]):           # a function just returned
         ret = returned(steps[-1]["frames"][0]["func"])
-    steps.append({"line": sal.line, "func": frame.name(), "frames": frames,
-                  "heap": heap_now(), "chunks": chunks, "ret": ret, "out": console(),
-                  "lib": [c for c in LIBCALLS if c["writes"] or c["func"] in ALLOCS or c["partial"]]})   # what the watchpoints caught
+    st = {"line": sal.line, "func": frame.name(), "frames": frames,
+          "heap": heap, "chunks": chunks, "ret": ret, "out": console(),
+          "lib": [c for c in LIBCALLS if c["writes"] or c["func"] in ALLOCS or c["partial"]]}   # what the watchpoints caught
+    if glob: st["globals"] = glob
+    steps.append(st)
     del LIBCALLS[:]
 
 class NoWatch(Exception): pass
@@ -453,6 +569,7 @@ gdb.execute("set pagination off"); gdb.execute("set confirm off")
 gdb.execute("break " + START)
 gdb.execute("run > " + STDOUT)
 our_file = gdb.selected_frame().find_sal().symtab.filename
+OUR_TYPES = our_types()
 try:
     gdb.execute("call (int) setvbuf(*(void **) &stdout, (char *) 0, 2, (unsigned long) 0)", to_string=True)
 except gdb.error:
