@@ -196,19 +196,39 @@ def read_array(addr, elem, esize):
     if req <= ARR_BYTES and csz > req: out["slack"] = raw(addr + req, csz - req)   # up to and including the next header
     return out
 
-def read_block(addr, stname):
-    t = gdb.lookup_type(stname)
-    v = gdb.Value(addr).cast(t.pointer()).dereference()
+NEST_MAX = 3                           # levels of structs inside structs to record
+def is_rec(t): return t.strip_typedefs().code in (gdb.TYPE_CODE_STRUCT, gdb.TYPE_CODE_UNION)
+
+def fields_of(v, t, depth=1):
+    """the fields of struct (or union) value v: name, type, kind, value, offset (from the start of v), size, target.
+       A field that is a struct or union itself also gets its own "fields", NEST_MAX levels deep"""
     fields = []
-    for f in t.fields():
+    for f in t.strip_typedefs().fields():
         if f.name is None: continue
         fv = v[f.name]; ft = fv.type.strip_typedefs()
         if ft.code == gdb.TYPE_CODE_PTR:   kind, val = "ptr", int(fv)
         elif scalar(ft):                   kind, val = "int", int(fv)
         else:                              kind, val = "other", None
-        fields.append({"name": f.name, "type": str(f.type), "kind": kind, "value": val,
-                       "offset": f.bitpos // 8, "size": f.type.sizeof,
-                       "target": str(ft.target()) if kind == "ptr" else None})
+        fd = {"name": f.name, "type": str(f.type), "kind": kind, "value": val,
+              "offset": f.bitpos // 8, "size": f.type.sizeof,
+              "target": str(ft.target()) if kind == "ptr" else None}
+        if is_rec(ft) and depth < NEST_MAX: fd["fields"] = fields_of(fv, ft, depth + 1)   # struct point pos: x and y
+        fields.append(fd)
+    return fields
+
+def ptr_values(v, t, depth=1):
+    """every pointer inside struct value v, nested structs too, in field order: (value, what it leads to)"""
+    for f in t.strip_typedefs().fields():
+        if f.name is None: continue
+        fv = v[f.name]; ft = fv.type.strip_typedefs()
+        if ft.code == gdb.TYPE_CODE_PTR: yield int(fv), ptr_desc(ft)
+        elif is_rec(ft) and depth < NEST_MAX:
+            for x in ptr_values(fv, ft, depth + 1): yield x
+
+def read_block(addr, stname):
+    t = gdb.lookup_type(stname)
+    v = gdb.Value(addr).cast(t.pointer()).dereference()
+    fields = fields_of(v, t)
     return {"addr": addr, "type": stname, "fields": fields, "freed": False,
             "size": t.sizeof, "bytes": raw(addr, t.sizeof),
             "header": raw(addr - 16, 16)}          # malloc's chunk header
@@ -243,6 +263,7 @@ def collect_vars(frame):
                             "decl": sym.line})                 # the line it was declared on
                 d = ptr_desc(t)
                 if d and is_ptr(t): ROOTS.append((int(v), d))
+                if is_rec(t): out[-1]["fields"] = fields_of(v, t)     # a struct on the stack: its fields, nested ones too
                 at = t.strip_typedefs()
                 if at.code == gdb.TYPE_CODE_ARRAY:
                     et = at.target().strip_typedefs(); ed = ptr_desc(et)
@@ -279,11 +300,6 @@ def returned(name):
         return {"func": name, "type": str(rt), "value": int(gdb.parse_and_eval("$rax").cast(rt))}
     except (gdb.error, AttributeError, TypeError, RuntimeError): return None
 
-def field_descs(stname):
-    """field name -> what that pointer field leads to"""
-    try: return {f.name: ptr_desc(f.type) for f in gdb.lookup_type(stname).fields() if f.name}
-    except gdb.error: return {}
-
 def discover(roots, starts, locals_):
     """remember every block reachable from these pointers, following each pointer field by its own type.
        Structs first, then int and char arrays, so a struct is never read as an array of its first field.
@@ -303,10 +319,12 @@ def discover(roots, starts, locals_):
             try: b = read_block(addr, d[1])
             except gdb.error: continue
             KNOWN[addr] = d
-            fd = field_descs(d[1])
-            for f in b["fields"]:
-                fk = fd.get(f["name"])
-                if f["kind"] == "ptr" and f["value"] and fk: (queue if fk[0] == "struct" else arrays).append((f["value"], fk))
+            try:
+                t = gdb.lookup_type(d[1])
+                ps = list(ptr_values(gdb.Value(addr).cast(t.pointer()).dereference(), t))   # pointers in nested structs too
+            except gdb.error: ps = []
+            for p, fk in ps:
+                if p and fk: (queue if fk[0] == "struct" else arrays).append((p, fk))
         while arrays:                                          # an int *, char * or int ** at the start of a used chunk
             addr, d = arrays.pop(0)
             if not addr or addr in seen or addr in FREED: continue

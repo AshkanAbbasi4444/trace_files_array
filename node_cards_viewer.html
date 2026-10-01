@@ -328,6 +328,7 @@ button.icon{width:30px;padding:4px 0;font-weight:700;border-radius:50%}
   <div class="hrow" style="grid-template-columns:1fr;gap:3px;padding:5px 0"><svg width="190" height="60" aria-hidden="true" font-family="'IBM Plex Mono',ui-monospace,Menlo,monospace" font-size="11.5"><rect x="1" y="2" width="62" height="56" rx="6" fill="#fff" stroke="#A9B6C6"/><rect x="18" y="8" width="38" height="20" rx="2" fill="#fff" stroke="#A9B6C6"/><rect x="18" y="32" width="38" height="20" rx="2" fill="#fff" stroke="#A9B6C6"/><text x="6" y="22" fill="#5B6B82">0</text><text x="6" y="46" fill="#5B6B82">1</text><path d="M56,18 H82" stroke="#5B6B82" stroke-width="1.5"/><path d="M56,42 H82" stroke="#5B6B82" stroke-width="1.5"/><path d="M78,14 L86,18 L78,22z M78,38 L86,42 L78,46z" fill="#5B6B82"/><g fill="#fff" stroke="#A9B6C6"><rect x="88" y="8" width="26" height="20" rx="2"/><rect x="114" y="8" width="26" height="20" rx="2"/><rect x="140" y="8" width="26" height="20" rx="2"/><rect x="88" y="32" width="26" height="20" rx="2"/><rect x="114" y="32" width="26" height="20" rx="2"/></g></svg><span>A grid: <b>int **grid</b> is a column of row pointers on the left (<b>i→</b> marks the row in use), each with an arrow to its row; the rows line up with their <b>[j]</b> on top (<b>↑j</b> under the row being indexed). Rows may have different lengths. <b>char **</b> rows are strings. <b>int grid[2][3]</b> and <b>char board[3][3]</b> on the stack: the same, inside one box</span></div>
   <div class="hrow" style="grid-template-columns:1fr;gap:3px;padding:5px 0"><span class="sw txt" style="font-size:11.5px;width:auto;white-space:nowrap">"hello"  h e l l o \0</span><span>A char array: one slot per char and the \0 that ends it, with its text on the line above. <b>char *words[3]</b>: each slot's string is above it, and every pointer slot gets its own arrow. <b>struct pair a[4]</b>: each slot is a little card with its fields</span></div>
   <div class="hrow" style="grid-template-columns:1fr;gap:3px;padding:5px 0"><svg width="190" height="62" aria-hidden="true" font-family="'IBM Plex Sans',system-ui,sans-serif" font-size="11.5"><rect x="70" y="2" width="44" height="20" rx="4" fill="#fff" stroke="#A9B6C6"/><rect x="20" y="38" width="44" height="20" rx="4" fill="#fff" stroke="#A9B6C6"/><rect x="120" y="38" width="44" height="20" rx="4" fill="#fff" stroke="#A9B6C6"/><path d="M80,22 C80,30 42,30 42,37 M104,22 C104,30 142,30 142,37" stroke="#5B6B82" stroke-width="1.4" fill="none"/></svg><span>A tree: a struct with <b>left</b> and <b>right</b> (or <b>lchild</b>, <b>rchild</b>) pointers to its own type. Root on top, children below, left to right in in-order. A dashed <b>NULL</b> stub under a missing child. Several trees sit side by side; other blocks follow below. Lists stay in a row</span></div>
+  <div class="hrow" style="grid-template-columns:1fr;gap:3px;padding:5px 0"><svg width="190" height="58" aria-hidden="true" font-family="'IBM Plex Mono',ui-monospace,Menlo,monospace" font-size="11.5"><rect x="1" y="1" width="150" height="56" rx="8" fill="#fff" stroke="#A9B6C6"/><text x="9" y="15" fill="#5B6B82">val</text><text x="142" y="15" text-anchor="end" font-weight="800" fill="#14213D">7</text><rect x="6" y="20" width="140" height="33" rx="5" fill="#F6F8FB" stroke="#D5DDE6"/><text x="12" y="33" font-weight="700" fill="#5B6B82">pos</text><text x="20" y="48" fill="#5B6B82">x</text><text x="138" y="48" text-anchor="end" font-weight="800" fill="#5B6B82">??</text></svg><span>A struct inside a struct: a box of its own inside the card (or the variable's box), with its own fields, highlights and ?? until set. Named like <b>item-&gt;pos.x</b>, <b>(*item).pos.x</b> and <b>&amp;item-&gt;pos</b>. A struct variable on the stack shows its fields one per line</span></div>
   <div class="hrow"><span class="sw txt" style="font-weight:400;color:#5B6B82">at 0x…</span><span>Under every box: the address where it lives (the simple one, or the real one: see View)</span></div>
   <div class="hrow" style="grid-template-columns:1fr;gap:3px;padding:5px 0"><span class="sw txt" style="font-weight:400;width:auto;white-space:nowrap">printf("*ptr = %d\n", *ptr);  → 42</span><span>Hover a box, a field or an array slot: the printf lines that print its value and its address from the running function, and what they print now. Click it to pin them, with a Copy button per line (Esc lets go)</span></div>
   <div class="hrow"><span class="sw txt" style="font-size:11.5px;color:#5B6B82;border:1px solid #A9B6C6;border-radius:999px;background:#F1F5F9;padding:0 6px">read-only</span><span>A char * to a string literal: the text it points to lives in read-only memory</span></div>
@@ -412,11 +413,24 @@ function show(a){
 }
 const real=a=>a===null||a===undefined?"":"0x"+a.toString(16);
 
+/* ---------- structs inside structs: a block's or a struct variable's fields, flattened: pos, then pos.x and pos.y ---------- */
+const FLC=new WeakMap();
+function FL(x){                                                   /* top-level fields are the trace's own objects; nested ones get a path name and an offset from x's start */
+  const fs=x&&x.fields; if(!fs) return [];
+  if(FLC.has(fs)) return FLC.get(fs);
+  const out=[], walk=(L,pre,base,d,par)=>L.forEach(f=>{
+    const g=d?Object.assign({},f,{name:pre+f.name,offset:f.offset==null?null:base+f.offset,depth:d,leaf:f.name,par}):f;
+    out.push(g); if(f.fields) walk(f.fields,g.name+".",g.offset||0,d+1,g); });
+  walk(fs,"",0,0,null); FLC.set(fs,out); return out;
+}
+const unsetF=(x,f)=>!!x&&!!x.funset&&x.funset.has(f.name);   /* a field not written yet (see markFieldInit) */
+const fieldAt=(b,p,t)=>{ const L=FL(b).filter(f=>f.offset!=null&&b.addr+f.offset===p);   /* the field p points at: the one of its own type if several start there */
+  return L.find(f=>t&&bare(f.type)===bare(t))||L[0]; };
 /* ---------- what changed since the previous step ---------- */
 function snap(s){
   const o={};
-  s.frames.forEach(f=>f.vars.forEach(v=>o["v:"+v.addr]=f.func+"|"+v.name+"|"+v.value));
-  s.heap.forEach(n=>{ o["h:"+n.addr+":freed"]=String(!!n.freed); (n.fields||[]).forEach(f=>o["h:"+n.addr+":"+f.name]=String(f.value)); });
+  s.frames.forEach(f=>f.vars.forEach(v=>{ o["v:"+v.addr]=f.func+"|"+v.name+"|"+v.value; FL(v).forEach(g=>o["h:"+v.addr+":"+g.name]=String(g.value)); }));   /* a struct variable: each field */
+  s.heap.forEach(n=>{ o["h:"+n.addr+":freed"]=String(!!n.freed); FL(n).forEach(f=>o["h:"+n.addr+":"+f.name]=String(f.value)); });
   o.out=s.out||"";
   o.func=s.func;
   return o;
@@ -442,7 +456,8 @@ function reachable(s){
   const arrIn=p=>{ const b=s.heap.find(n=>n.kind==="array"&&p>=n.addr&&p<=n.addr+n.size); return b?b.addr:null; };   /* a pointer anywhere into a heap array keeps it */
   s.frames.forEach(f=>f.vars.forEach(v=>{ if(v.struct&&v.value&&v.init!==false) q.push(v.value);   /* leftovers are not references */
     else if(v.kind==="ptr"&&v.value&&v.init!==false&&arrIn(v.value)) q.push(arrIn(v.value));
-    else if(v.kind==="other"&&v.init!==false) elemPtrs(v).forEach(e=>{ if(e.p&&byAddr[e.p]) q.push(e.p); }); }));   /* int *ps[3]: each one it points to is held */
+    else if(v.kind==="other"&&v.init!==false) elemPtrs(v).forEach(e=>{ if(e.p&&byAddr[e.p]) q.push(e.p); });   /* int *ps[3]: each one it points to is held */
+    if(v.init!==false) FL(v).forEach(f=>{ if(f.kind==="ptr"&&f.value&&!unsetF(v,f)) q.push(f.value); }); }));   /* a struct on the stack: its pointer fields */
   if(s.ret&&/\*\s*$/.test(s.ret.type||"")&&s.ret.value) q.push(s.ret.value);                     /* a pointer just returned is still held (in rax) */
   while(q.length){
     let p=q.shift();
@@ -450,7 +465,7 @@ function reachable(s){
     if(!p||!byAddr[p]||live.has(p)) continue;
     live.add(p);
     if(byAddr[p].freed) continue;
-    (byAddr[p].fields||[]).forEach(fd=>{ if(fd.kind==="ptr"&&fd.value) q.push(fd.value); });
+    FL(byAddr[p]).forEach(fd=>{ if(fd.kind==="ptr"&&fd.value) q.push(fd.value); });
     if(isPtrArr(byAddr[p])) elemPtrs(byAddr[p]).forEach(e=>{ if(e.p) q.push(e.p); });          /* a pointer array holds its rows */
   }
   return live;
@@ -510,8 +525,12 @@ function touched(i){
       }
     }
   }
+  if(SRC&&RA&&RA.fr){                                            /* local.pos.x, it->pos.x: struct variables and structs inside structs */
+    const code=codeAt(RA.line), re2=/(?<![\w.>])([A-Za-z_]\w*)((?:\s*(?:->|\.)\s*[A-Za-z_]\w*)+)/g; let m;
+    while((m=re2.exec(code))){ if(!/\./.test(m[2])) continue; const r=evalExpr(P,RA.fr,m[0].replace(/\s+/g,""));
+      r.hops.forEach(h=>{ T.inv.add(h.box); const k=h.box.split(":"); if(k[0]==="h"&&P.heap.some(n=>n.addr===+k[1])) T.inv.add("b:"+k[1]); }); } }
   S.frames.forEach(f=>f.vars.forEach(v=>{ if(v.kind==="ptr"&&v.init!==false&&T.ch.has("v:"+v.addr)&&inS[v.value]) hot.add(v.value); }));
-  S.heap.forEach(n=>{ if(!n.freed) (n.fields||[]).forEach(fd=>{ if(fd.kind==="ptr"&&T.ch.has("h:"+n.addr+":"+fd.name)&&inS[fd.value]) hot.add(fd.value); }); });
+  S.heap.forEach(n=>{ if(!n.freed) FL(n).forEach(fd=>{ if(fd.kind==="ptr"&&T.ch.has("h:"+n.addr+":"+fd.name)&&inS[fd.value]) hot.add(fd.value); }); });
   hot.forEach(a=>T.inv.add("b:"+a));                                                              /* where a changed pointer now leads */
   S.frames.forEach(f=>f.vars.forEach(v=>{ if(v.kind==="ptr"&&v.init!==false&&hot.has(v.value)) T.inv.add("v:"+v.addr); }));   /* other ways to reach it */
   const Rp=reachable(P), Rs=reachable(S);
@@ -537,9 +556,12 @@ function reach(s,fr){                                            /* R["v:addr" |
   const follow=(x,v,d)=>v.kind==="ptr"&&v.init!==false&&v.value?{x,p:v.value,t:v.target,d}:null;
   fr.vars.forEach(v=>put("v:"+v.addr,v.name,"&"+v.name,v.type,follow(v.name,v,0),0));
   fr.vars.forEach(v=>{ if(v.kind==="other"&&v.init!==false) elemPtrs(v).forEach(e=>{ if(e.p) q.push({x:`${v.name}[${e.j}]`,p:e.p,t:e.t,d:0}); }); });   /* int *ps[3]: ps[1] leads on */
+  const sfs=(u,pre,acc,d)=>FL(u).forEach(f=>put("h:"+u.addr+":"+f.name,pre+acc+f.name,"&"+pre+acc+f.name,f.type,u.init===false||unsetF(u,f)?null:follow(pre+acc+f.name,f,d),d));   /* a struct variable's fields: local.pos.x */
+  fr.vars.forEach(v=>sfs(v,v.name,".",0));
+  const subs=(b,f,x,d)=>FL(b).forEach(g=>{ if(g.name.startsWith(f.name+".")){ const e=par(x)+"->"+g.name.slice(f.name.length+1); put("h:"+b.addr+":"+g.name,e,"&"+e,g.type,follow(e,g,d),d); } });   /* p = &it->list: p->next is it->list.next */
   while(q.length){
     const {x,p,t,d:d0}=q.shift(), sv=stack[p], d=d0+1;
-    if(sv&&(!t||t===sv.type)){ put("v:"+p,"*"+x,x,sv.type,follow("*"+x,sv,d),d); continue; }   /* another variable, like main's head */
+    if(sv&&(!t||t===sv.type)){ put("v:"+p,"*"+x,x,sv.type,follow("*"+x,sv,d),d); sfs(sv,par(x),"->",d); continue; }   /* another variable, like main's head */
     if(sv&&t===elemOf(sv.type)){ if(!(("v:"+p) in D)) D["v:"+p]=d; continue; }                 /* the start of an array: reachable, no tag */
     const b=blocks.find(n=>p>=n.addr&&p<n.addr+(n.size||16)+(n.kind==="array"?1:0)); if(!b) continue;
     if(b.kind==="array"){ if(p===b.addr){ const first=!(("b:"+b.addr) in D); put("b:"+b.addr,"*"+x,x,b.type,null,d);
@@ -547,10 +569,10 @@ function reach(s,fr){                                            /* R["v:addr" |
       else if(!(("b:"+b.addr) in D)) D["b:"+b.addr]=d; continue; }   /* an int array: no fields to follow */
     if(p===b.addr){                                                                      /* a node, and the fields in it */
       put("b:"+b.addr,"*"+x,x,b.type,null,d);
-      (b.fields||[]).forEach(f=>put("h:"+b.addr+":"+f.name,par(x)+"->"+f.name,"&"+par(x)+"->"+f.name,f.type,follow(par(x)+"->"+f.name,f,d),d));
+      FL(b).forEach(f=>put("h:"+b.addr+":"+f.name,par(x)+"->"+f.name,"&"+par(x)+"->"+f.name,f.type,follow(par(x)+"->"+f.name,f,d),d));
     } else {                                                                              /* a field inside a node, like &n->next */
-      const f=(b.fields||[]).find(f=>b.addr+f.offset===p);
-      if(f) put("h:"+b.addr+":"+f.name,"*"+x,x,f.type,follow("*"+x,f,d),d);
+      const f=fieldAt(b,p,t);
+      if(f){ put("h:"+b.addr+":"+f.name,"*"+x,x,f.type,follow("*"+x,f,d),d); if(f.fields) subs(b,f,x,d); }
     }
   }
   return R;
@@ -564,15 +586,18 @@ function allNames(s,fr){                                         /* key -> every
   const follow=(x,u,d)=>u.kind==="ptr"&&u.init!==false&&u.value?{x,p:u.value,t:u.target,d}:null;
   fr.vars.forEach(v=>put("v:"+v.addr,v.name,"&"+v.name,follow(v.name,v,1)));
   fr.vars.forEach(v=>{ if(v.kind==="other"&&v.init!==false) elemPtrs(v).forEach(e=>{ if(e.p) q.push({x:`${v.name}[${e.j}]`,p:e.p,t:e.t,d:1}); }); });
+  const sfs=(u,pre,acc,d)=>FL(u).forEach(f=>put("h:"+u.addr+":"+f.name,pre+acc+f.name,"&"+pre+acc+f.name,u.init===false||unsetF(u,f)?null:follow(pre+acc+f.name,f,d)));   /* local.pos.x, pp->pos.x */
+  fr.vars.forEach(v=>sfs(v,v.name,".",1));
   while(q.length){
     const {x,p,t,d}=q.shift(), sv=stack[p];
-    if(sv&&(!t||t===sv.type)){ put("v:"+p,"*"+x,x,follow("*"+x,sv,d+1)); continue; }
+    if(sv&&(!t||t===sv.type)){ put("v:"+p,"*"+x,x,follow("*"+x,sv,d+1)); sfs(sv,par(x),"->",d+1); continue; }
     if(sv) continue;
     const b=blocks.find(n=>p>=n.addr&&p<n.addr+(n.size||16)); if(!b) continue;
     if(p===b.addr){ put("b:"+b.addr,"*"+x,x,null);
       if(isPtrArr(b)&&d<=4) elemPtrs(b).forEach(e=>{ if(e.p) q.push({x:`${par(x)}[${e.j}]`,p:e.p,t:e.t,d:d+1}); });
-      if(b.kind!=="array") (b.fields||[]).forEach(f=>put("h:"+b.addr+":"+f.name,par(x)+"->"+f.name,"&"+par(x)+"->"+f.name,follow(par(x)+"->"+f.name,f,d+1))); }
-    else { const f=(b.fields||[]).find(f=>b.addr+f.offset===p); if(f) put("h:"+b.addr+":"+f.name,"*"+x,x,follow("*"+x,f,d+1)); }
+      if(b.kind!=="array") FL(b).forEach(f=>put("h:"+b.addr+":"+f.name,par(x)+"->"+f.name,"&"+par(x)+"->"+f.name,follow(par(x)+"->"+f.name,f,d+1))); }
+    else { const f=fieldAt(b,p,t); if(f){ put("h:"+b.addr+":"+f.name,"*"+x,x,follow("*"+x,f,d+1));
+      if(f.fields) FL(b).forEach(g=>{ if(g.name.startsWith(f.name+".")){ const e=par(x)+"->"+g.name.slice(f.name.length+1); put("h:"+b.addr+":"+g.name,e,"&"+e,follow(e,g,d+1)); } }); } }
   }
   return A;
 }
@@ -645,7 +670,7 @@ function printfFor(s,key,slot){                                  /* {fn, note, v
     const L=(A[key]||[]).slice();
     if(b.v&&arrDims(b.v)) fr.vars.forEach(u=>{ if(u.kind==="ptr"&&viewBase(u,b.v,arrDims(b.v).w)===0&&!L.some(o=>o.v===u.name)) L.push({v:u.name,a:u.name}); });   /* a pointer to its start works like its name */
     if(b.v||b.fd){                                                 /* a variable or a struct field */
-      const u=b.v||b.fd, t=u.type, D=b.v&&arrDims(u), unset=u.init===false;
+      const u=b.v||b.fd, t=u.type, D=b.v&&arrDims(u), unset=u.init===false||(!b.v&&(b.n.init===false||unsetF(b.n,u)));
       const hex=b.v?u.bytes:fieldHex(b.n,u), out=unset?"?? (not set yet: whatever bytes are there)":pfOut(t,u.kind==="ptr"||u.kind==="int"?u.value:null,hex);
       L.forEach(o=>{
         const ov=/\W/.test(o.v)?`(${o.v})`:o.v;
@@ -660,8 +685,11 @@ function printfFor(s,key,slot){                                  /* {fn, note, v
         if(D){ const n=Math.min(D.n,ARRMAX), parts=arrSlots(u,true);   /* a whole array: one element at a time */
           add(val,o.v,t,(parts?parts.parts.slice(0,n).map((x,i)=>!u.eset||u.eset[i]?x:"??").join(" "):"?")+(D.n>n?" …":""),`for (int i = 0; i < ${D.n}; i++) printf("${pfSpec(D.el).sp||"%d"} ", ${/\W/.test(o.v)?`(${o.v})`:o.v}[i]);`);
           if(o.a!==o.v) add(adr,o.a,t+" *",show(u.addr)); add(adr,`&${/\W/.test(o.v)?`(${o.v})`:o.v}[0]`,D.el+" *",show(u.addr)); if(o.a===o.v) add(adr,o.v,D.el+" *",show(u.addr)); return; }
+        if(b.v&&b.v.fields){ const ov=/\W/.test(o.v)?`(${o.v})`:o.v;   /* a struct variable: one line per field */
+          FL(b.v).forEach(f=>{ if(!f.fields) add(val,`${ov}.${f.name}`,f.type,unset||unsetF(b.v,f)?"?? (not set yet: whatever bytes are there)":pfOut(f.type,f.kind==="ptr"||f.kind==="int"?f.value:null,fieldHex(b.v,f))); });
+          add(adr,o.a,t+" *",show(u.addr)); return; }
         add(val,o.v,t,out);
-        const m=o.v.match(/^(.*)->(\w+)$/); if(m) add(val,`(*${m[1]}).${m[2]}`,t,out);   /* head->val is (*head).val */
+        const m=o.v.match(/^(.*)->([\w.]+)$/); if(m) add(val,`(*${m[1]}).${m[2]}`,t,out);   /* head->val is (*head).val, item->pos.x is (*item).pos.x */
         add(adr,o.a,t+" *",show(b.v?u.addr:b.n.addr+u.offset));
         if(u.kind==="ptr"&&/char$/.test(bare(u.target))&&u.value&&!unset){   /* a char *: %s prints the string it points to */
           const str=u.cstr!=null?u.cstr:cString(s,u.value); if(str!=null) add(val,o.v,"char *s",str); } });
@@ -675,7 +703,7 @@ function printfFor(s,key,slot){                                  /* {fn, note, v
       if(D&&isChr(D.el,D.w)){ const str=cString(s,n.addr); if(str!=null) add(val,o.a,"char *s",str); }   /* a char array: %s prints it up to its \0 */
       else if(D){ const k=Math.min(D.n,ARRMAX), parts=arrSlots(n,true);
         add(val,o.v,n.type,(parts?parts.parts.slice(0,k).map((x,i)=>!n.eset||n.eset[i]?x:"??").join(" "):"?")+(D.n>k?" …":""),`for (int i = 0; i < ${D.n}; i++) printf("${pfSpec(D.el).sp||"%d"} ", ${pe}[i]);`); }
-      else (n.fields||[]).forEach(fd=>add(val,`${pe}->${fd.name}`,fd.type,pfOut(fd.type,fd.kind==="ptr"||fd.kind==="int"?fd.value:null,fieldHex(n,fd)))); });
+      else FL(n).forEach(fd=>{ if(!fd.fields) add(val,`${pe}->${fd.name}`,fd.type,unsetF(n,fd)?"?? (not set yet: whatever bytes are there)":pfOut(fd.type,fd.kind==="ptr"||fd.kind==="int"?fd.value:null,fieldHex(n,fd))); }); });
     return {val,adr};
   };
   let r=build(inner), fn=inner.func, note="";
@@ -756,7 +784,8 @@ function ladderHTML(s){
     if(fd){ rows.push([nx,vt(fd),fd.type,`the ${fd.name} field of the node at ${show(b.addr)}`]); x=nx; cur=fd; continue; }
     rows.push([nx,"?",tg,"memory this trace doesn't show"]); break;
   }
-  if(node&&!node.freed) (node.fields||[]).forEach(fd=>rows.push([`${par(x.slice(1))}->${fd.name}`,vt(fd),fd.type,`its ${fd.name} field`]));
+  if(node&&!node.freed) FL(node).forEach(fd=>rows.push([`${par(x.slice(1))}->${fd.name}`,fd.fields?"—":unsetF(node,fd)?"??":vt(fd),fd.type,`its ${fd.name} field`]));
+  if(v.fields) FL(v).forEach(fd=>rows.push([`${v.name}.${fd.name}`,fd.fields?"—":v.init===false||unsetF(v,fd)?"??":vt(fd),fd.type,`its ${fd.name} field`]));   /* a struct variable */
   return top+`<div class="lt">ladder for <b>${esc(v.name)}</b><span>${v.arg?"parameter":"local"} of ${esc(f.func)}${v.decl?`, line ${v.decl}`:""}</span></div><table>`+
     rows.map(r=>`<tr><td class="e">${esc(r[0])}</td><td>${esc(r[1])}</td><td class="t">${esc(r[2])}</td><td class="t">${esc(r[3])}</td></tr>`).join("")+
     `</table><div class="lh">each * follows one arrow · & goes one step back · -> reads a field of the node</div></div>`;
@@ -802,18 +831,21 @@ function evalExpr(s, frame, text){                              /* -> {hops:[{bo
     if(pl.init===false) fail(`${pl.e} isn't set yet, so following it is a bug`);
     if(!pl.value) fail(`${pl.e} is NULL: there's nothing to follow`);
     const p=pl.value, sv=stackAt[p];
-    if(sv&&(!pl.target||pl.target===sv.type||pl.target===elemOf(sv.type))) return place("*"+pl.e,"v:"+p,sv,{addr:p});
+    if(sv&&(!pl.target||pl.target===sv.type||pl.target===elemOf(sv.type))) return place("*"+pl.e,"v:"+p,sv,{addr:p,grp:sv.fields?{o:sv,pre:""}:null});
     const b=s.heap.find(n=>p>=n.addr&&p<n.addr+(n.size||16));
     if(b&&b.freed) fail(`${pl.e} points to a freed block, so using it is a bug`,b.addr);
     if(b&&b.kind==="array"){ const T=bare(pl.target), w=ELSZ(T), got=w&&readAt(p,w); if(!got) fail(`*${pl.e} is past the end of its block`);   /* *p on an int array: one element */
       return {e:"*"+pl.e,key:"b:"+b.addr,kind:"elem",txt:elemVal(got.b,T),type:T,addr:p}; }
     if(b&&p===b.addr) return {e:"*"+pl.e,key:"b:"+b.addr,kind:"node",node:b,type:b.type,addr:b.addr};
-    const fd=b&&(b.fields||[]).find(f=>b.addr+f.offset===p);
-    if(fd) return place("*"+pl.e,"h:"+b.addr+":"+fd.name,fd,{addr:p});
+    const fd=b&&fieldAt(b,p,pl.target);
+    if(fd) return place("*"+pl.e,"h:"+b.addr+":"+fd.name,fd,{addr:p,grp:fd.fields?{o:b,pre:fd.name+"."}:null});   /* p = &it->list: *p is it->list */
     fail(`${pl.e} points somewhere this trace doesn't show`);
   };
-  const field=(nd,f,e)=>{ const fd=(nd.node.fields||[]).find(x=>x.name===f); if(!fd) fail(`that node has no field called ${f}`);
-    return place(e,"h:"+nd.node.addr+":"+fd.name,fd,{addr:nd.node.addr+fd.offset}); };
+  const sub=(ow,f,e)=>{ const nm=ow.pre+f, fd=FL(ow.o).find(x=>x.name===nm);   /* a field of a node, of a struct variable, or of a struct inside one */
+    if(!fd) fail(ow.pre?`${ow.pre.slice(0,-1)} has no field called ${f}`:ow.o.kind==="other"?`${ow.o.name} has no field called ${f}`:`that node has no field called ${f}`);
+    return place(e,"h:"+ow.o.addr+":"+fd.name,fd,{addr:ow.o.addr+fd.offset,grp:fd.fields?{o:ow.o,pre:fd.name+"."}:null}); };
+  const field=(nd,f,e)=>sub({o:nd.node,pre:""},f,e);
+  const owner=pl=>pl.kind==="node"?{o:pl.node,pre:""}:pl.grp||null;
   const par=e=>/^[*&]/.test(e)?`(${e})`:e;
   function unary(){
     if(toks[i]==="*"){ i++; const pl=unary(), r=deref(pl); hops.push({box:r.key,from:pl.key}); return r; }
@@ -826,12 +858,12 @@ function evalExpr(s, frame, text){                              /* -> {hops:[{bo
       if(toks[i]==="["){ i++; pl=index(pl); continue; }
       const op=toks[i++], f=toks[i++]||"";
       if(!/^[A-Za-z_]\w*$/.test(f)) fail("a field name has to come next");
-      if(op==="->"){ const nd=deref(pl); if(nd.kind!=="node") fail(`${pl.e} doesn't point to a node`);
-        const r=field(nd,f,`${par(pl.e)}->${f}`); hops.push({box:r.key,from:pl.key}); pl=r; }
+      if(op==="->"){ const nd=deref(pl), ow=owner(nd); if(!ow) fail(`${pl.e} doesn't point to a node`);
+        const r=sub(ow,f,`${par(pl.e)}->${f}`); hops.push({box:r.key,from:pl.key}); pl=r; }
       else if(pl.kind==="selem"){ const fd=pl.ef.find(x=>x.name===f); if(!fd) fail(`${pl.type} has no field called ${f}`);   /* a[i].val */
         const b=memRead(s,pl.addr+fd.offset,fd.size); pl={e:`${pl.e}.${f}`,key:pl.key,kind:"elem",txt:b?sfText(fd,b):"?",type:fd.type,addr:pl.addr+fd.offset,sf:{k:pl.idx,f:fd}}; }
-      else { if(pl.kind!=="node") fail(`${pl.e} isn't a node, so .${f} doesn't work`);
-        const r=field(pl,f,`${par(pl.e)}.${f}`); hops.push({box:r.key,from:null}); pl=r; }
+      else { const ow=owner(pl); if(!ow) fail(`${pl.e} isn't a node, so .${f} doesn't work`);   /* (*it).val, local.pos.x, it->pos.x */
+        const r=sub(ow,f,`${par(pl.e)}.${f}`); hops.push({box:r.key,from:null}); pl=r; }
     }
     return pl;
   }
@@ -840,7 +872,7 @@ function evalExpr(s, frame, text){                              /* -> {hops:[{bo
     if(t==="("){ i++; const pl=unary(); if(toks[i++]!==")") fail("a ) is missing"); return pl; }
     if(t&&/^[A-Za-z_]\w*$/.test(t)){ i++; const v=frame.vars.find(v=>v.name===t);
       if(!v) fail(`${t} isn't a variable in ${frame.func}`);
-      hops.push({box:"v:"+v.addr,from:null}); return place(t,"v:"+v.addr,v,{addr:v.addr}); }
+      hops.push({box:"v:"+v.addr,from:null}); return place(t,"v:"+v.addr,v,{addr:v.addr,grp:v.fields?{o:v,pre:""}:null}); }
     fail("that isn't something the viewer can follow");
   }
   try{ const r=unary(); if(i<toks.length) fail("only * & -> . [ ] and ( ) can be followed here"); return {hops,r}; }
@@ -1213,6 +1245,30 @@ function lineCells(v,w,RA,st){                                  /* lineArr, cell
     L.read.forEach(j=>{ if(j>=0&&j<C) out.read.add(i*C+j); }); L.write.forEach(j=>{ if(j>=0&&j<C) out.write.add(i*C+j); }); });
   return out;
 }
+function markFieldInit(t){                                       /* x.funset: fields not written yet. All of a struct variable's, and the nested ones (pos.x) of a heap struct */
+  let prev=new Map();
+  const leaves=(x,deep)=>FL(x).filter(f=>!f.fields&&(!deep||f.depth));
+  const bchg=(x,o,f)=>{ if(f.offset==null) return false; const a=hx(x.bytes).slice(f.offset,f.offset+f.size), b=hx(o.bytes).slice(f.offset,f.offset+f.size); return a.length!==b.length||a.some((c,k)=>c!==b[k]); };
+  t.steps.forEach((s,i)=>{
+    const cur=new Map(), RA=i>0?ranAt(i):null, P=i>0?t.steps[i-1]:null, W=[];   /* W: what the line that just ran assigned to: {addr, path} */
+    if(SRC&&RA&&RA.fr&&!RA.call){ const code=codeAt(RA.line), m=code.match(/^(.*?[^=!<>+\-*\/%&|^])(?:\+=|-=|\*=|\/=|=)(?!=)/);
+      if(m){ let lhs=m[1].trim(); const decl=lhs.match(/^(?:const\s+)?(?:struct\s+\w+|unsigned\s+\w+|\w+)\s*(\**)\s*([A-Za-z_]\w*)$/);
+        if(decl&&decl[2]) lhs=decl[2];
+        const r=evalExpr(P,RA.fr,lhs), k=r.r&&r.r.key?r.r.key.split(":"):null;
+        if(k&&k[0]==="h") W.push({addr:+k[1],path:k[2]}); else if(k&&k[0]==="v") W.push({addr:+k[1],path:""}); } }
+    const wrote=(x,f)=>W.some(w=>w.addr===x.addr&&(!w.path||f.name===w.path||f.name.startsWith(w.path+".")));
+    const step=(x,id,fresh,all,deep)=>{ const L=leaves(x,deep); if(!L.length) return;
+      const old=prev.get(id); let u;
+      if(!old||fresh) u=new Set(all?L.map(f=>f.name):[]);
+      else { u=new Set(old.u); L.forEach(f=>{ if(u.has(f.name)&&(wrote(x,f)||bchg(x,old,f))) u.delete(f.name); }); }
+      x.funset=u.size?u:null; cur.set(id,{u,bytes:x.bytes,freed:!!x.freed,type:x.type,init:x.init}); };
+    s.frames.forEach(f=>f.vars.forEach(v=>{ if(!v.fields) return; const id=v.addr+"|"+f.func+"|"+v.name;
+      const old=prev.get(id); step(v,id,v.init===false&&!!old&&old.init!==false,v.init===false&&!v.arg,false); }));   /* back in scope (a new call): unset again */
+    s.heap.forEach(n=>{ if(n.kind==="array"||!n.fields||n.freed) return; const id="h"+n.addr, old=prev.get(id);
+      step(n,id,!!old&&(old.freed||old.type!==n.type),true,true); });
+    prev=cur;
+  });
+}
 function markArrInit(t){                                         /* v.eset[k] = 1 once element k is written; null when every element is */
   let prev=new Map();
   t.steps.forEach((s,i)=>{
@@ -1287,10 +1343,11 @@ function arrPrep(){                                              /* one box widt
     M.cols.forEach(c=>{ if(c.slot<shown) c.names.forEach(m=>{ w=Math.max(w,6.9*(1+Math.min(9,m.who.length))+12); });
       rows=Math.max(rows,Math.min(3,c.names.length)); });
     cw.set(id,Math.max(cw.get(id)||0,Math.min(96,Math.ceil(w)))); };
-  TRACE.steps.forEach(s=>{ s.frames.forEach(f=>f.vars.forEach(v=>one(s,f,v,f.func+"|"+v.name+"|"+v.type)));
+  let sh=0;                                                       /* a struct variable: one line per field */
+  TRACE.steps.forEach(s=>{ s.frames.forEach(f=>f.vars.forEach(v=>{ one(s,f,v,f.func+"|"+v.name+"|"+v.type); if(v.fields&&v.kind==="other") sh=Math.max(sh,44+FL(v).length*16+20); }));
     s.heap.forEach(n=>{ if(n.kind==="array"){ heapArr=true; one(s,null,n,"h"+n.addr+"|"+n.type); } }); });
   const RH=32+rows*14;                                            /* a 2D array's rows: slots, then room for ↑j */
-  return ARRP={t:TRACE,src:SRC,simple,cw,rows,heapArr,hdr,RH,ext:(hdr?16:0)+(gR-1)*RH+(nf-1)*16};   /* ext: how much taller the stack boxes get */
+  return ARRP={t:TRACE,src:SRC,simple,cw,rows,heapArr,hdr,RH,sh,ext:(hdr?16:0)+(gR-1)*RH+(nf-1)*16};   /* ext: how much taller the stack boxes get */
 }
 function sysSlot(f,a,fb,lo){                                     /* return addr, saved rbp, stack canary, or not used */
   if(a===f.rbp+8) return {name:"return addr",tip:"where this function returns to"};
@@ -1621,18 +1678,20 @@ const kc=t=>`<code>${esc(t)}</code>`;                                /* a bit of
 function boxIn(st,key){                                            /* find a box on one step: a variable, a field, a node */
   const [k,a,f]=key.split(":"), addr=+a;
   if(k==="v"){ for(const fr of st.frames){ const v=fr.vars.find(v=>v.addr===addr); if(v) return {v,fr}; } return null; }
-  const n=st.heap.find(n=>n.addr===addr); if(!n) return null;
-  return k==="b"?{n}:{n,fd:(n.fields||[]).find(x=>x.name===f)};
+  const n=st.heap.find(n=>n.addr===addr);
+  if(!n){ if(k!=="h") return null; for(const fr of st.frames){ const v=fr.vars.find(v=>v.addr===addr&&v.fields); if(v) return {n:v,fd:FL(v).find(x=>x.name===f),sv:true,fr}; } return null; }   /* local.pos.x */
+  return k==="b"?{n}:{n,fd:FL(n).find(x=>x.name===f)};
 }
 function boxName(st,key,runFn){
   const b=boxIn(st,key); if(!b) return "that box";
   if(b.v) return b.fr.func===runFn?b.v.name:`${b.fr.func}'s ${b.v.name}`;
+  if(b.sv) return (b.fr.func===runFn?"":b.fr.func+"'s ")+b.n.name+(b.fd?"."+b.fd.name:"");
   return b.fd?`${show(b.n.addr)}'s ${b.fd.name}`:b.n.kind==="array"?`the ${b.n.type} array at ${show(b.n.addr)}`:`the node at ${show(b.n.addr)}`;
 }
 function boxVal(st,key){
   const b=boxIn(st,key); if(!b) return "?";
   const u=b.v||b.fd; if(!u) return b.n.kind==="array"?(arrText(`${elemOf(b.n.type)} [${(arrDims(b.n)||{}).n||0}]`,(arrDims(b.n)||{}).span||0,b.n.bytes,30)||"—"):`the node at ${show(b.n.addr)}`;
-  if(u.init===false) return "?? (not set yet)";
+  if(u.init===false||(b.fd&&(b.n.init===false||unsetF(b.n,b.fd)))) return "?? (not set yet)";
   if(u.kind==="ptr") return u.value?show(u.value):"NULL";
   if(u.kind==="int") return String(u.value);
   return (b.v?arrText(u.type,u.size,u.bytes,30):null)||"—";
@@ -1746,7 +1805,7 @@ function renderCards(s){
   const TT=touched(at), CH=TT.ch, R=reachable(s), inner=s.frames[0], RC=reach(s), CI=callInfo(s), RET=retInfo(s);
   const AP=arrPrep(), RAc=ranAt(at), PST=at>0?TRACE.steps[at-1]:null, varAt={};                 /* AP.rows: lines of ↑i marks an array needs */
   s.frames.forEach(f=>f.vars.forEach(v=>{ if(v.addr) varAt[v.addr]=v; }));
-  const LL=listLines(s), SLOTW=184, SLOTH=86+AP.rows*14+AP.ext, CW=218, STEP=236, FH=36, DIM=' opacity="0.22"';
+  const LL=listLines(s), SLOTW=184, SLOTH=Math.max(86+AP.rows*14+AP.ext,AP.sh), CW=218, STEP=236, FH=36, DIM=' opacity="0.22"';
   const HOPC=["#BFDBFE","#93C5FD","#3B82F6","#1D4ED8"], hopc=d=>HOPC[Math.min(d,3)];          /* own, 1, 2, 3+ hops away */
   const EX=e=>` data-ex="${esc(e)}"`;                                                        /* hover it: its hops light up */
   const isNew=f=>at>0&&f===inner&&TRACE.steps[at-1].frames.length<s.frames.length;
@@ -1821,6 +1880,35 @@ function renderCards(s){
     const empty=RG&&RG.empty?`empty range: ${RG.loName} is ${RG.loV}, ${RG.hiName} is ${RG.hiV}`:"";
     return {h,changed,rd,mch,marks:marks+(RG?`\n${RG.text}: `+(RG.empty?"nothing left between them":`[${RG.lo}…${RG.hi}] still in play`):"")+(WIN?`\nwindow ${WIN.text}`:""),notes,empty};
   };
+  const structW=v=>Math.ceil(Math.max(SLOTW,11+7.6*v.name.length+14+6.9*v.type.length+8,
+    ...FL(v).map(g=>12+(g.depth||0)*12+6.9*(g.leaf||g.name).length+16+(g.fields?6.9*short(g.type).length:7.2*(g.kind==="ptr"?(simple?10:14):g.kind==="int"?11:12))+12)));
+  const structBox=(sl,f,bx,by)=>{                                 /* struct item2 local: its fields one per line, a struct inside it as a box */
+    const v=sl.v, w=sl.w, key="v:"+v.addr, L=FL(v), unset=v.init===false, rc=RC[key], hd=RC._D?RC._D[key]:undefined, out=hd===undefined&&!!inner;
+    const kf=g=>"h:"+v.addr+":"+g.name, Cs=L.some(g=>CH.has(kf(g))), I=!Cs&&TT.inv.has(key), F=TT.on&&!Cs&&!I&&!L.some(g=>TT.inv.has(kf(g)));
+    const who=(f===inner?"":f.func+"'s ")+v.name, lines={}, ptrs=[];
+    const role=`\n${v.arg?"parameter":"local"} of ${f.func}${v.decl?`, declared on line ${v.decl}`:""}`+(out?`\n${inner.func} can't reach this box`:"")+(v.addr?libTip(s,v.addr,v.size||8):"");
+    let h="", y=by+40;
+    L.forEach(g=>{ const ix=(g.depth||0)*12, k=kf(g), Cg=CH.has(k), Ig=!Cg&&TT.inv.has(k), rg=RC[k], fa=v.addr+(g.offset||0); lines[g.name]=y+8;
+      const tip=`${who}.${g.name} (${g.type})\nat ${real(fa)}${simple?" ("+show(fa)+")":""}, ${v.name}'s start + ${g.offset}`+reachTip(rg,inner?inner.func:"");
+      if(g.fields){ const n=L.filter(x=>x.name.startsWith(g.name+".")).length;
+        h+=`<g data-box="${k}" data-tip="${esc(tip)}"><rect x="${bx+6+ix}" y="${y+1}" width="${w-12-2*ix}" height="${(n+1)*16+2}" rx="5" fill="#F6F8FB" stroke="${Ig?INK:LN}" stroke-width="${Ig?1.6:1}"/>`+
+          `<text x="${bx+12+ix}" y="${y+13}" font-size="11.5" font-weight="700" fill="${MUT}" ${MONO}>${esc(g.leaf||g.name)}</text><text x="${bx+w-12-ix}" y="${y+13}" font-size="10" text-anchor="end" fill="${MUT}" ${MONO}>${esc(short(g.type))}</text></g>`; }
+      else { const un=unset||unsetF(v,g), txt=un?"??":g.kind==="ptr"?show(g.value):g.kind==="int"?String(g.value):(arrText(g.type,g.size,fieldHex(v,g),12)||"—");
+        if(g.kind==="ptr"&&!un&&g.value) ptrs.push({g,C:Cg,I:Ig,y:y+8});
+        h+=`<g data-box="${k}" data-tip="${esc(tip+(un?"\nnot set yet: leftover bytes":""))}">`+(Cg||Ig?`<rect x="${bx+8+ix}" y="${y+2}" width="${w-16-2*ix}" height="15" rx="3" fill="${Cg?AMBG:"none"}" stroke="${Ig?INK:"none"}" stroke-width="1.4"/>`:"")+
+          `<text x="${bx+12+ix}" y="${y+13}" font-size="11.5" font-weight="${rg?700:400}" fill="${rg?REACH:MUT}" ${MONO}>${esc(g.leaf||g.name)}</text>`+
+          `<text x="${bx+w-12-ix}" y="${y+13}" font-size="12" font-weight="800" text-anchor="end" fill="${Cg?AMB:un?MUT:INK}" ${MONO}>${Cg?`<tspan class="pop">${esc(txt)}</tspan>`:esc(txt)}</text></g>`; }
+      y+=16; });
+    pos[key]={x:bx+w/2,y:by+SLOTH,C:Cs,I,F,who,lines,ptrs,bx,w};
+    return `<g data-box="${key}" data-lad="${v.addr}|${esc(f.func)}|${esc(v.name)}" data-tip="${esc(v.name+" ("+v.type+"): "+L.filter(g=>!g.depth).length+" fields"+role+"\nreal address "+real(v.addr)+(unset?"\nnot set yet: leftover bytes":v.funset?"\n?? = not set yet: leftover bytes":"")+reachTip(rc,inner?inner.func:"").replace(/\nchange it: .*/,""))}"${F?DIM:""}>`+
+      `<rect x="${bx}" y="${by}" width="${w}" height="${SLOTH}" rx="8" fill="${out?"#F1F3F5":"#fff"}" stroke="${I?INK:BORDER}" stroke-width="${I?2.2:1}"/>`+
+      (hd!==undefined?`<rect x="${bx+2}" y="${by+7}" width="4" height="${SLOTH-14}" rx="2" fill="${hopc(hd)}"/>`:"")+
+      `<text x="${bx+11}" y="${by+17}" font-size="12.5" font-weight="700" fill="${INK}" ${MONO}>${esc(v.name)}</text>`+
+      `<text x="${bx+w-8}" y="${by+17}" font-size="10" text-anchor="end" fill="${MUT}">${esc(v.type)}</text>`+
+      `<text x="${bx+11}" y="${by+33}" font-size="11.5" fill="${MUT}" ${MONO}>at ${show(v.addr)}</text>`+
+      (out?`<text x="${bx+11}" y="${by+SLOTH-6}" font-size="10" font-style="italic" fill="${MUT}">not reachable from here</text>`
+         :rc&&rc.v!==v.name?`<text x="${bx+w-8}" y="${by+33}" font-size="11" font-weight="700" text-anchor="end" fill="${REACH}" ${MONO}${EX(rc.v)}>= ${esc(rc.v)}</text>`:"")+h+`</g>`;
+  };
   const gridBox=(sl,f,bx,by)=>{                                   /* int grid[2][3], char board[3][3]: a row of slots per row, [i] and i→ on the left, [j] on top */
     const v=sl.v, A=sl.A, G=A.grid, g=sl.g, key="v:"+v.addr, unset=v.init===false, rc=RC[key], hd=RC._D?RC._D[key]:undefined, out=hd===undefined&&!!inner;
     const whoA=(f===inner?"":f.func+"'s ")+v.name, code=RAc?codeAt(RAc.line):"", x0=bx+g.gx, M=arrMarks(s,f,v,A), cells=[];
@@ -1881,7 +1969,7 @@ function renderCards(s){
   };
   [...s.frames].reverse().forEach(f=>{                           /* address order: main's frame on the left */
     const vars=[...f.vars].sort((a,b)=>(b.addr||0)-(a.addr||0));
-    let slots=vars.map(v=>{ const A=arrSlots(v); if(!A) return {v,addr:v.addr||0,w:SLOTW};   /* an array gets one box per element */
+    let slots=vars.map(v=>{ const A=arrSlots(v); if(!A) return v.fields&&v.kind==="other"?{v,addr:v.addr||0,w:structW(v),st:true}:{v,addr:v.addr||0,w:SLOTW};   /* an array gets one box per element, a struct one line per field */
       if(A.grid){ const cw=AP.cw.get(f.func+"|"+v.name+"|"+v.type)||30, RG=A.grid.RS.map(RA=>arrGeo(RA,cw,"","",0)), gx=11+44+30;   /* row marks, [i], then the cells */
         const head=11+7.6*v.name.length+14+6.9*v.type.length+8+6.9*("at "+show(v.addr)).length+10;
         return {v,addr:v.addr||0,w:Math.ceil(Math.max(SLOTW,head,gx-11+Math.max(...RG.map(r=>r.endL+r.endW))+8)),A,g:{cw,RG,gx}}; }
@@ -1921,6 +2009,7 @@ function renderCards(s){
         return;
       }
       if(sl.A){ o+=arrBox(sl,f,bx,by); return; }
+      if(sl.st){ o+=structBox(sl,f,bx,by); return; }
       const v=sl.v, SLOTW2=sl.w, key="v:"+v.addr, C=CH.has(key), I=!C&&TT.inv.has(key), F=TT.on&&!C&&!I, rc=RC[key], ci=CI[key], hd=RC._D?RC._D[key]:undefined, out=hd===undefined&&!!inner;
       const role=`\n${v.arg?"parameter":"local"} of ${f.func}${v.decl?`, declared on line ${v.decl}`:""}`+(ci?`\n${ci.text}`:"")+(out?`\n${inner.func} can't reach this box`:"")+(v.addr?libTip(s,v.addr,v.size||8):"");
       const val=v.init===false?"??":v.kind==="int"?String(v.value):v.kind==="other"?(arrText(v.type,v.size,v.bytes,22)||"—"):(v.value===null?"—":show(v.value));   /* ?? only means: not set yet */
@@ -1969,7 +2058,8 @@ function renderCards(s){
   items.forEach(it=>{ const n=it.n; if(!n||n.kind!=="array") return; const A=arrSlots(n); if(!A) return;
     HGEO[n.addr]={A,g:arrGeo(A,AP.cw.get("h"+n.addr+"|"+n.type)||30,"",n.type,CW)}; });
   const ARRH=AP.rows?111+(AP.rows-1)*14:96;                       /* an array card: band, [0] [1] …, slots, ↑ marks */
-  const nf=Math.max(1,...s.heap.map(n=>(n.fields||[]).length)), CARDH=Math.max(46+nf*FH,AP.heapArr?ARRH:0);
+  const GH=24, rowsOf=n=>{ let y=0; return FL(n).map(f=>{ const h=f.fields?GH:FH, r={f,y,h}; y+=h; return r; }); };   /* a nested struct: a header row, then its own fields */
+  const nf=Math.max(1,...s.heap.map(n=>(n.fields||[]).length)), CARDH=Math.max(46+Math.max(nf*FH,...s.heap.map(n=>FL(n).reduce((t,f)=>t+(f.fields?GH:FH),0))),AP.heapArr?ARRH:0);
   /* int **grid: its column of row pointers and the rows they point to, drawn together as one grid */
   const GRIDS=[], claimed=new Set(), ROWG=52+Math.max(0,AP.rows-1)*14, GG=new Map(), COLG={};
   items.forEach(it=>{ const n=it.n; if(!n||!isPtrArr(n)||n.freed||!HGEO[n.addr]) return;
@@ -2137,7 +2227,7 @@ function renderCards(s){
     }
     if(HGEO[it.n.addr]){ o+=heapArr(it.n,bx,HY); return; }
     const n=it.n, freed=!!n.freed, lost=!freed&&!R.has(n.addr), rb=RC["b:"+n.addr], hd=RC._D?RC._D["b:"+n.addr]:undefined, out=hd===undefined&&!freed&&!lost&&!!inner;
-    const C=freed?CH.has("h:"+n.addr+":freed"):n.fields.some(f=>CH.has("h:"+n.addr+":"+f.name)), I=!C&&TT.inv.has("b:"+n.addr), F=TT.on&&!C&&!I&&!lost;   /* a leak always stays visible */
+    const C=freed?CH.has("h:"+n.addr+":freed"):FL(n).some(f=>CH.has("h:"+n.addr+":"+f.name)), I=!C&&TT.inv.has("b:"+n.addr), F=TT.on&&!C&&!I&&!lost;   /* a leak always stays visible */
     cx[n.addr]=bx; cy[n.addr]=HY;
     const cStroke=C?AMB:freed?DEAD:lost?BAD:I?INK:BORDER, band=freed?"#EDF1F5":lost?"#FBE9E9":C?"#FCEBC2":"#EEF2F7", at=show(n.addr), tw=at.length*7.4+18;
     o+=`<g data-box="b:${n.addr}" data-tip="${esc("real address "+real(n.addr)+"\n"+n.type+reachTip(rb,inner?inner.func:"")+(out?`\n${inner.func} can't reach this block`:"")+libTip(s,n.addr,n.size||16))}"${F?DIM:""}>`+
@@ -2168,17 +2258,25 @@ function renderCards(s){
           `<text class="hov" x="${bx+11}" y="${fy+30}" font-size="10" fill="${FAINT}" ${MONO}>at +${w*8}${old?` · was ${esc(old)}`:""}</text></g>`;
       });
     }
-    (freed?[]:n.fields).forEach((fd,j)=>{
-      const fy=HY+42+j*FH, key="h:"+n.addr+":"+fd.name, Cf=CH.has(key), rf=RC[key];
-      const txt=fd.kind==="ptr"?show(fd.value):fd.kind==="other"?(arrText(fd.type,fd.size,fieldHex(n,fd),14)||"—"):(fd.value===null?"—":String(fd.value));
+    const RW=freed?[]:rowsOf(n);
+    RW.forEach(({f:fd,y:ry})=>{ if(!fd.fields) return;          /* a struct inside the struct: a box around its own fields */
+      const fy=HY+42+ry, key="h:"+n.addr+":"+fd.name, ix=(fd.depth||0)*10, rf=RC[key], If=TT.inv.has(key), sub=RW.filter(r=>r.f.name.startsWith(fd.name+".")), hh=GH+sub.reduce((t,r)=>t+r.h,0);
+      const Cf=sub.some(r=>CH.has("h:"+n.addr+":"+r.f.name)), fa=n.addr+fd.offset;
+      o+=`<g data-box="${key}" data-tip="${esc(fd.name+" ("+fd.type+"): a struct inside the struct\nat "+real(fa)+(simple?" ("+show(fa)+")":"")+", the block's start + "+fd.offset+reachTip(rf,inner?inner.func:""))}">`+
+        `<rect x="${bx+4+ix}" y="${fy+2}" width="${CW-8-2*ix}" height="${hh-4}" rx="6" fill="#F6F8FB" stroke="${Cf?AMB:If?INK:LN}" stroke-width="${Cf||If?1.6:1}"/>`+
+        `<text x="${bx+11+ix}" y="${fy+16}" font-size="11.5" font-weight="700" fill="${rf?REACH:MUT}" ${MONO}${rf?EX(rf.v):""}>${esc(rf?orText(rf.v,rf.alt.map(o=>o.v),16):fd.leaf||fd.name)}</text>`+
+        `<text x="${bx+CW-10-ix}" y="${fy+16}" font-size="10" text-anchor="end" fill="${MUT}" ${MONO}>${esc(short(fd.type))}</text></g>`; });
+    RW.forEach(({f:fd,y:ry})=>{ if(fd.fields) return;
+      const fy=HY+42+ry, key="h:"+n.addr+":"+fd.name, Cf=CH.has(key), rf=RC[key], ix=(fd.depth||0)*10, Ix=!!fd.depth&&!Cf&&TT.inv.has(key), un=unsetF(n,fd);   /* nested: read outline, ?? until set */
+      const txt=un?"??":fd.kind==="ptr"?show(fd.value):fd.kind==="other"?(arrText(fd.type,fd.size,fieldHex(n,fd),14)||"—"):(fd.value===null?"—":String(fd.value));
       const fa=fd.offset!=null?n.addr+fd.offset:null, faTxt=fa===null?"":simple?show(fa):"…"+fa.toString(16).slice(-4);   /* this field's own address */
-      const croom=Math.floor((CW-10-(faTxt?6.9*(faTxt.length+3)+10:0)-11)/6.9)-13;   /* the hover "change: … = …;" stops before the address */
+      const croom=Math.floor((CW-10-2*ix-(faTxt?6.9*(faTxt.length+3)+10:0)-11)/6.9)-13;   /* the hover "change: … = …;" stops before the address */
       o+=`<g data-box="${key}" data-tip="${esc(fd.name+" ("+fd.type+")"+(fa===null?"":"\nat "+real(fa)+(simple?" ("+show(fa)+")":"")+", the block's start + "+fd.offset)+reachTip(rf,inner?inner.func:""))}">`+
-         `<rect x="${bx+3}" y="${fy+3}" width="${CW-6}" height="${FH-6}" rx="4" fill="${Cf?AMBG:"transparent"}"/>`+
-         `<text x="${bx+11}" y="${fy+17}" font-size="10.5" font-weight="${rf?700:400}" fill="${rf?REACH:MUT}" ${MONO}${rf?EX(rf.v):""}>${esc(rf?orText(rf.v,rf.alt.map(o=>o.v),16):fd.name)}</text>`+
-         `<text x="${bx+CW-10}" y="${fy+17}" font-size="${txt.length>7?12:14}" font-weight="800" text-anchor="end" fill="${Cf?AMB:INK}" ${MONO}>${Cf?`<tspan class="pop">${esc(txt)}</tspan>`:esc(txt)}</text>`+
-         (rf&&croom>=4?`<text class="hov" x="${bx+11}" y="${fy+30}" font-size="10" fill="${MUT}" ${MONO}${EX(rf.v)}>change: <tspan fill="${REACH}">${esc(clip(rf.v,croom))} = …;</tspan></text>`:"")+
-         (faTxt?`<text x="${bx+CW-10}" y="${fy+30}" font-size="11.5" text-anchor="end" fill="${MUT}" ${MONO}>at ${faTxt}</text>`:"")+`</g>`;
+         `<rect x="${bx+3+ix}" y="${fy+3}" width="${CW-6-2*ix}" height="${FH-6}" rx="4" fill="${Cf?AMBG:"transparent"}"${Ix?` stroke="${INK}" stroke-width="1.6"`:""}/>`+
+         `<text x="${bx+11+ix}" y="${fy+17}" font-size="10.5" font-weight="${rf?700:400}" fill="${rf?REACH:MUT}" ${MONO}${rf?EX(rf.v):""}>${esc(rf?orText(rf.v,rf.alt.map(o=>o.v),16):fd.leaf||fd.name)}</text>`+
+         `<text x="${bx+CW-10-ix}" y="${fy+17}" font-size="${txt.length>7?12:14}" font-weight="800" text-anchor="end" fill="${Cf?AMB:un?MUT:INK}" ${MONO}>${Cf?`<tspan class="pop">${esc(txt)}</tspan>`:esc(txt)}</text>`+
+         (rf&&croom>=4?`<text class="hov" x="${bx+11+ix}" y="${fy+30}" font-size="10" fill="${MUT}" ${MONO}${EX(rf.v)}>change: <tspan fill="${REACH}">${esc(clip(rf.v,croom))} = …;</tspan></text>`:"")+
+         (faTxt?`<text x="${bx+CW-10-ix}" y="${fy+30}" font-size="11.5" text-anchor="end" fill="${MUT}" ${MONO}>at ${faTxt}</text>`:"")+`</g>`;
     });
     const lw=libIn(s,n.addr,n.size||16);                          /* a library call wrote into it on this line */
     o+=(lost?`<text x="${bx+CW/2}" y="${HY+CARDH+17}" font-size="12.5" font-weight="700" text-anchor="middle" fill="${BAD}">leaked: nothing points here</text>`:"")+
@@ -2206,7 +2304,7 @@ function renderCards(s){
   const tabEnd=a=>cx[a]+8+show(a).length*7.4+18;                 /* the right end of a card's address tab */
   s.heap.forEach(n=>{
     const tk=TPOS.has(n.addr)&&TK.get(n.addr);
-    (n.fields||[]).forEach((fd,j)=>{
+    FL(n).forEach((fd,j)=>{
       if(tk&&(fd===tk.L||fd===tk.R)&&cx[n.addr]!==undefined){       /* a tree: left and right go down to the children */
         const key="h:"+n.addr+":"+fd.name, C=CH.has(key), I=!C&&TT.inv.has(key), F=TT.on&&!C&&!I, col=C?AMB:I?INK:MUT, isL=fd===tk.L;
         const x1=cx[n.addr]+(isL?44:CW-44), y1=cy[n.addr]+CARDH, rf=RC[key];
@@ -2250,7 +2348,7 @@ function renderCards(s){
   /* cut links: the arrow this line just replaced, as a faint ghost for one step */
   if(at>0){ const P=TRACE.steps[at-1], pb={}, pv={}; P.heap.forEach(n=>pb[n.addr]=n);
     s.heap.forEach(n=>{ const o=pb[n.addr]; if(n.freed||!o||o.freed||cx[n.addr]===undefined) return;
-      (n.fields||[]).forEach((fd,j)=>{ const of=fd.kind==="ptr"&&(o.fields||[]).find(f=>f.name===fd.name), ov=of&&of.value;
+      FL(n).forEach((fd,j)=>{ const of=fd.kind==="ptr"&&FL(o).find(f=>f.name===fd.name), ov=of&&of.value;
         if(!ov||ov===fd.value||cx[ov]===undefined) return;
         const x1=cx[n.addr]+CW-20, x2=cx[ov]+20, by=cy[n.addr]+CARDH, d=30+Math.abs(cx[ov]-cx[n.addr])/STEP*12+j*10, ly=Math.max(by+Math.max(d*0.75+16,30),lastLy+18); lastLy=ly;
         low=Math.max(low,ly+14);
@@ -2305,27 +2403,33 @@ function renderCards(s){
     else if(tv&&tv!==v&&(!v.target||v.target===tv.type||v.target===elemOf(tv.type))&&pos["v:"+tv.addr]){   /* to another variable, or an array's start */
       const tp=pos["v:"+tv.addr], tx=tp.x-34; d=`M${sp.x},${sp.y} C${sp.x},${sp.y+44} ${tx},${tp.y+44} ${tx},${tp.y+3}`;   /* lands left of centre, clear of its own arrow */
       st=star("v:"+tv.addr,tx-6,tp.y+17,"end",sp.F);
-    } else { const b=blockOf(v.value), f=b&&(b.fields||[]).find(f=>b.addr+f.offset===v.value);   /* into a node's field */
+    } else { const b=blockOf(v.value), f=b&&fieldAt(b,v.value,v.target);   /* into a node's field */
       if(!f||cx[b.addr]===undefined) return;
-      const j=b.fields.indexOf(f), tx=cx[b.addr], ty=cy[b.addr]+42+j*FH+FH/2; d=`M${sp.x},${sp.y} C${sp.x},${sp.y+70} ${tx-50},${ty} ${tx-2},${ty}`;
+      const r=rowsOf(b).find(r=>r.f===f), tx=cx[b.addr], ty=cy[b.addr]+42+r.y+r.h/2; d=`M${sp.x},${sp.y} C${sp.x},${sp.y+70} ${tx-50},${ty} ${tx-2},${ty}`;
       st=star("h:"+b.addr+":"+f.name,tx-6,ty-7,"end",sp.F); }
     arrows+=`<path data-arrow="v:${v.addr}" d="${d}" fill="none" ${sp.C&&!dash?'pathLength="1" class="draw"':""}${dash} stroke="${col}" stroke-width="${sp.C||sp.I?2.3:1.5}" stroke-linecap="round" marker-end="url(#m${mk})"${sp.F?DIM:""}/>`+
       `<circle cx="${sp.x}" cy="${sp.y}" r="3.6" fill="${col}"${sp.F?DIM:""}/>`+typeTag(v.type,sp.x+6,sp.y+14,col,sp.F);
     labels+=st;
   }));
+  const ptrTo=(sx,sy,p,t,self,C,Rd,F,id)=>{                       /* an arrow from (sx, sy) at the bottom of a stack box to whatever p points at */
+    const ia=intoArray({value:p,target:t}), ha=!ia&&heapHit(p,t), b=!ia&&!ha&&byAddr[p], fb=!ia&&!ha&&!b&&blockOf(p), ff=fb&&fieldAt(fb,p,t), tv=!ia&&!ha&&!b&&!ff&&stackAt[p];
+    let col=C?AMB:Rd?INK:MUT, mk=C?"a":Rd?"k":"g", d="", dash="";
+    if(ia){ const ty=ia.y??ia.tp.y; d=`M${sx},${sy} C${sx},${sy+44} ${ia.x},${ty+44} ${ia.x},${ty+3}`; }
+    else if(ha){ d=`M${sx},${sy} C${sx},${sy+60} ${ha.x},${ha.top-60} ${ha.x},${ha.top}`; if(ha.b.freed){ col=BAD; mk="r"; dash=' stroke-dasharray="5 4"'; } }
+    else if(b&&cx[p]!==undefined){ const x2=cx[p]+CW/2-30, y2=x2<=tabEnd(p)+4?cy[p]-19:cy[p]-2; d=`M${sx},${sy} C${sx},${sy+60} ${x2},${y2-60} ${x2},${y2}`; if(b.freed){ col=BAD; mk="r"; dash=' stroke-dasharray="5 4"'; } }
+    else if(ff&&cx[fb.addr]!==undefined){ const r=rowsOf(fb).find(r=>r.f===ff), tx=cx[fb.addr], ty=cy[fb.addr]+42+r.y+r.h/2; d=`M${sx},${sy} C${sx},${sy+70} ${tx-50},${ty} ${tx-2},${ty}`; }   /* into a field: lands on its row */
+    else if(tv&&tv!==self&&pos["v:"+tv.addr]){ const tp=pos["v:"+tv.addr], tx=tp.x-34; d=`M${sx},${sy} C${sx},${sy+44} ${tx},${tp.y+44} ${tx},${tp.y+3}`; }
+    else return "";
+    return `<path data-arrow="${id}" d="${d}" fill="none" ${C&&!dash?'pathLength="1" class="draw"':""}${dash} stroke="${col}" stroke-width="${C||Rd?2.3:1.5}" stroke-linecap="round" marker-end="url(#m${mk})"${F?DIM:""}/>`+
+      `<circle cx="${sx}" cy="${sy}" r="3.4" fill="${col}"${F?DIM:""}/>`; };
   s.frames.forEach(f=>f.vars.forEach(v=>{                         /* int *ps[3], char *words[3]: an arrow from each slot that points at a box */
     const sp=pos["v:"+v.addr]; if(!sp||!sp.arr||v.kind!=="other"||v.init===false) return;
     elemPtrs(v).forEach(e=>{ if(!e.p||e.j>=sp.arr.shown||(v.eset&&!v.eset[e.j])) return;
-      const sx=slotX(sp.arr,e.j), C=!!sp.ch&&sp.ch.has(e.j), Rd=!C&&!!sp.rd&&sp.rd.has(e.j), F=sp.F&&!C&&!Rd;
-      const ia=intoArray({value:e.p,target:e.t}), ha=!ia&&heapHit(e.p,e.t), b=!ia&&!ha&&byAddr[e.p], tv=!ia&&!ha&&!b&&stackAt[e.p];
-      let col=C?AMB:Rd?INK:MUT, mk=C?"a":Rd?"k":"g", d="", dash="";
-      if(ia){ const ty=ia.y??ia.tp.y; d=`M${sx},${sp.y} C${sx},${sp.y+44} ${ia.x},${ty+44} ${ia.x},${ty+3}`; }
-      else if(ha){ d=`M${sx},${sp.y} C${sx},${sp.y+60} ${ha.x},${ha.top-60} ${ha.x},${ha.top}`; if(ha.b.freed){ col=BAD; mk="r"; dash=' stroke-dasharray="5 4"'; } }
-      else if(b&&cx[e.p]!==undefined){ const x2=cx[e.p]+CW/2-30, y2=x2<=tabEnd(e.p)+4?cy[e.p]-19:cy[e.p]-2; d=`M${sx},${sp.y} C${sx},${sp.y+60} ${x2},${y2-60} ${x2},${y2}`; if(b.freed){ col=BAD; mk="r"; dash=' stroke-dasharray="5 4"'; } }
-      else if(tv&&tv!==v&&pos["v:"+tv.addr]){ const tp=pos["v:"+tv.addr], tx=tp.x-34; d=`M${sx},${sp.y} C${sx},${sp.y+44} ${tx},${tp.y+44} ${tx},${tp.y+3}`; }
-      else return;
-      arrows+=`<path data-arrow="v:${v.addr}|${e.j}" d="${d}" fill="none" ${C&&!dash?'pathLength="1" class="draw"':""}${dash} stroke="${col}" stroke-width="${C||Rd?2.3:1.5}" stroke-linecap="round" marker-end="url(#m${mk})"${F?DIM:""}/>`+
-        `<circle cx="${sx}" cy="${sp.y}" r="3.4" fill="${col}"${F?DIM:""}/>`; }); }));
+      const C=!!sp.ch&&sp.ch.has(e.j), Rd=!C&&!!sp.rd&&sp.rd.has(e.j);
+      arrows+=ptrTo(slotX(sp.arr,e.j),sp.y,e.p,e.t,v,C,Rd,sp.F&&!C&&!Rd,`v:${v.addr}|${e.j}`); }); }));
+  s.frames.forEach(f=>f.vars.forEach(v=>{                         /* struct item2 local: an arrow from each pointer field, from the bottom of the box */
+    const sp=pos["v:"+v.addr]; if(!sp||!sp.ptrs) return;
+    sp.ptrs.forEach((q,k)=>{ arrows+=ptrTo(sp.bx+sp.w-16-k*16,sp.y,q.g.value,q.g.target,v,q.C,q.I,sp.F&&!q.C&&!q.I,`h:${v.addr}:${q.g.name}`); }); }));
   Object.entries(CI).forEach(([k,ci])=>{ const tp=pos[k], sp=ci.src&&pos["v:"+ci.src.addr]; if(!tp||!sp) return;
     const sx=sp.arr?slotX(sp.arr,0)+Math.min(10,sp.arr.cw/3):sp.x+34, tx=tp.x+34;            /* an array passes &a[0] */
     arrows+=`<path d="M${sx},${sp.y} C${sx},${sp.y+30} ${tx},${tp.y+30} ${tx},${tp.y+3}" fill="none" stroke="${AMB}" stroke-width="1.6" stroke-dasharray="4 3" marker-end="url(#ma)"/>`; });
@@ -2354,7 +2458,7 @@ function asSimple(b){                                            /* pointer byte
 }
 function markHeapSteps(t){                                        /* which steps changed the heap at all */
   let prev=null;
-  t.steps.forEach((s,i)=>{ const k=s.heap.map(n=>n.addr+(n.freed?"F":"")+(n.kind==="array"?n.bytes:(n.fields||[]).map(f=>f.value).join(","))).join("|");
+  t.steps.forEach((s,i)=>{ const k=s.heap.map(n=>n.addr+(n.freed?"F":"")+(n.kind==="array"?n.bytes:FL(n).map(f=>f.value).join(","))).join("|");
     s.hch=i===0||i===t.steps.length-1||k!==prev; prev=k; });
 }
 function markAllocator(t){                                       /* freed blocks: which 8-byte words free() rewrote */
@@ -2390,7 +2494,9 @@ function memModel(s){
     f.vars.forEach(v=>{
       if(!v.addr||!v.bytes) return;
       const junk=v.init===false, raw=hx(v.bytes), EP=junk?[]:elemPtrs(v);
-      const b=v.kind==="ptr"&&!junk?asSimple(raw):EP.length?raw.map((x,k)=>k<EP.length*8?asSimple(raw.slice(k-k%8,k-k%8+8))[k%8]:x):raw, n=Math.min(b.length,LIMIT);   /* int *ps[3]: each pointer, like a pointer */
+      const b=v.kind==="ptr"&&!junk?asSimple(raw):EP.length?raw.map((x,k)=>k<EP.length*8?asSimple(raw.slice(k-k%8,k-k%8+8))[k%8]:x):raw.slice(), n=Math.min(b.length,LIMIT);   /* int *ps[3]: each pointer, like a pointer */
+      const LF=junk?[]:FL(v).filter(g=>!g.fields&&g.offset!=null);   /* a struct variable: its pointer fields show the simple address too */
+      LF.forEach(g=>{ if(g.kind==="ptr"&&g.size===8) asSimple(raw.slice(g.offset,g.offset+8)).forEach((x,k)=>b[g.offset+k]=x); });
       for(let k=0;k<n;k++){
         const a=v.addr+k, ra=a-a%8, r=row(ra);
         r.cells[a-ra]={a,h:b[k],cls:junk?"junk":""}; M.bytes.set(a,b[k]);
@@ -2413,6 +2519,10 @@ function memModel(s){
           const got=parts.filter((_,i)=>v.addr+i*w<a+8&&v.addr+(i+1)*w>a);
           r.vl=[{name:v.name,txt:got.join(" ")||"—"}]; } }
       EP.forEach(e=>{ const r=e.p&&(v.addr+e.j*8)%8===0&&rows.get(v.addr+e.j*8); if(r) r.ptrs=(r.ptrs||[]).concat({to:e.p,freed:freedAt(e.p),k:"v:"+v.addr}); });   /* an arrow per pointer */
+      if(LF.length) for(let a=v.addr-(v.addr%8);a<v.addr+n;a+=8){ const r=rows.get(a); if(!r) continue;   /* each field's value in its row, an arrow per pointer field */
+        const got=LF.filter(g=>v.addr+g.offset>=a&&v.addr+g.offset<a+8); if(!got.length) continue;
+        r.vl=got.map(g=>({name:g.name,txt:unsetF(v,g)?"??":g.kind==="ptr"?(g.value?show(g.value):"NULL"):g.kind==="int"?String(g.value):"—"}));
+        got.forEach(g=>{ if(g.kind==="ptr"&&g.value&&!unsetF(v,g)) r.ptrs=(r.ptrs||[]).concat({to:g.value,freed:freedAt(g.value),k:"h:"+v.addr+":"+g.name}); }); }
     });
     if(FRAMEINT&&f.rbp&&f.frame_bytes){                          /* fill in the rest of the frame */
       const fb=hx(f.frame_bytes), lo=f.lo??f.rsp, hi=f.rbp+16;
@@ -2438,7 +2548,7 @@ function memModel(s){
     const raw=hx(n.bytes).concat(slack), size=Math.min((n.size||raw.length)+slack.length,raw.length,LIMIT), own=[], rows=[], H=hx(n.header);
     const nextHdr=H.length===16?Number(le(H.slice(8))&~7n)-16:Infinity;   /* where the next chunk's header starts, from this block's start */
     const flds=D?Array.from({length:Math.min(D.n,Math.ceil(LIMIT/D.w))},(_,i)=>{ const b=hx(n.bytes).slice(i*D.w,(i+1)*D.w), set=!n.eset||!!n.eset[i];   /* one field per element: [0] [1] … */
-        return {name:`[${i}]`,type:D.el,kind:set&&D.w===8&&/\*\s*$/.test(D.el)?"ptr":"int",offset:i*D.w,size:D.w,value:!set||b.length<D.w?"??":isChr(D.el,D.w)?charParts(b.join(""),1)[0]:elemText(D.el,b)}; }):(n.fields||[]);
+        return {name:`[${i}]`,type:D.el,kind:set&&D.w===8&&/\*\s*$/.test(D.el)?"ptr":"int",offset:i*D.w,size:D.w,value:!set||b.length<D.w?"??":isChr(D.el,D.w)?charParts(b.join(""),1)[0]:elemText(D.el,b)}; }):FL(n).filter(f=>!f.fields);   /* a struct inside a struct: its own fields, pos.x and pos.y */
     flds.forEach(f=>{ if(f.offset!=null) for(let k=0;k<(f.size||0);k++) own[f.offset+k]=f; });
     if(H.length===16){
       const sz=le(H.slice(8));
@@ -2599,12 +2709,12 @@ function loadTrace(txt){
       fields:[{name:"val",type:"int",kind:"int",value:n.val},{name:"next",type:"ptr",kind:"ptr",value:n.next}]});
     (st.frames||[]).forEach(fr=>(fr.vars||[]).forEach(v=>{ if(v.struct===undefined) v.struct=v.node_ptr?"struct":null; }));
   });
-  buildMap(TRACE); markAllocator(TRACE); markHeapSteps(TRACE); markInit(TRACE); markArrInit(TRACE); frameColors(TRACE); EXNAMES=null; markBugs(TRACE); WATCH.forEach(w=>w.vals=null); EXNAMES=null; EXC=new Map(); RCACHE.clear(); at=0;
+  buildMap(TRACE); markAllocator(TRACE); markHeapSteps(TRACE); markInit(TRACE); markArrInit(TRACE); markFieldInit(TRACE); frameColors(TRACE); EXNAMES=null; markBugs(TRACE); WATCH.forEach(w=>w.vals=null); EXNAMES=null; EXC=new Map(); RCACHE.clear(); at=0;
   try{ const v=+localStorage.getItem(posKey()); if(v>0&&v<TRACE.steps.length) at=v; }catch(e){}          /* back where you were */
   $("drop").style.display="none"; $("main").style.display="grid";
   $("slider").max=TRACE.steps.length-1; draw();
 }
-function setSrc(t){ SRC=t.split("\n"); FNL=null; EXC=new Map(); if(TRACE){ markInit(TRACE); markArrInit(TRACE); markBugs(TRACE); WATCH.forEach(w=>w.vals=null); draw(); } }
+function setSrc(t){ SRC=t.split("\n"); FNL=null; EXC=new Map(); if(TRACE){ markInit(TRACE); markArrInit(TRACE); markFieldInit(TRACE); markBugs(TRACE); WATCH.forEach(w=>w.vals=null); draw(); } }
 function readFile(f,cb){ const r=new FileReader(); r.onload=()=>cb(r.result); r.readAsText(f); }
 $("openT").onclick=()=>$("fT").click(); $("openC").onclick=()=>$("fC").click();
 $("fT").onchange=e=>readFile(e.target.files[0],loadTrace);

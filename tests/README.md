@@ -27,5 +27,6 @@ Small C programs and their traces, to re-check `node_cards_viewer.html` and `tra
 | board | `char board[3][3]` filled with '.', then one 'X': a char grid on the stack |
 | pairs | `struct pair { int val; int idx; } a[4]` filled in a loop: a little card per slot, each field ?? until set |
 | grid2d | `int grid[2][3]` and `int *ps[2] = {grid[0], grid[1]}`: a 2D grid on the stack and an arrow from each pointer slot |
+| nested | `struct item2 { int val; struct point pos; struct item2 *next; }`: a malloc'd list of 2 and one on the stack, `it->pos.x`, `local.pos.y` |
 
 `../remove_element.json` was made by the older trace.py: it checks old traces still open the same.
