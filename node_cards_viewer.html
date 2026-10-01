@@ -1774,13 +1774,42 @@ function bugText(b,i){
   if(b.kind==="double free"){ const w=freedWhen(b.addr,i-1);
     return `free(${show(b.addr)}) a second time${w?`: it was already freed on line ${w.line} (step ${w.step})`:""}`; }
   if(b.kind==="bad free") return `free(${show(b.addr)}): that address never came from malloc`;
-  if(b.kind==="crash") return `the program was stopped by ${b.sig}${b.sig==="SIGABRT"?", because glibc caught a heap bug and aborted":b.sig==="SIGSEGV"?", because it touched memory it isn't allowed to":""}`;
+  if(b.kind==="crash"){ const st=TRACE.steps[i], C=crashCulprits(st,i);
+    if(b.sig==="SIGSEGV"&&b.addr!=null){ const k=C.find(c=>c.crash);
+      return `tried to ${k&&k.write?"write":"read"} address ${b.addr<4096?"0x"+b.addr.toString(16):show(b.addr)}${b.addr<4096?" (NULL"+(b.addr?` + ${b.addr}`:"")+")":""}`+(k?`: ${k.name} ${k.text.replace(/^this pointer /,"").replace(/^this block/,"its block")}`:""); }
+    const g=b.sig==="SIGABRT"&&glibcSaid(st);
+    if(g) return `glibc stopped the program: "${g}"`;
+    return `the program was stopped by ${b.sig}${b.sig==="SIGABRT"?", because glibc caught a heap bug and aborted":b.sig==="SIGSEGV"?", because it touched memory it isn't allowed to":""}`; }
   return b.kind;
+}
+const SIGNAME={SIGSEGV:"Segmentation fault",SIGABRT:"Aborted",SIGFPE:"Arithmetic error (SIGFPE)",SIGBUS:"Bus error",SIGILL:"Illegal instruction"};
+function glibcSaid(st){                                          /* the line glibc printed before it aborted, like free(): double free detected in tcache 2 */
+  const L=(st.out||"").split("\n").map(x=>x.trim()).filter(Boolean).reverse();
+  return L.find(x=>/^(?:[\w ]+\(\): |double free or corruption|corrupted |malloc_consolidate|Fatal glibc error)/.test(x))||null;
+}
+function crashCulprits(st,i){                                    /* the boxes behind a crash or a bad free: {key, name, text, write, crash} */
+  if(!st||!st._cul){ const out=[], bad=(st&&st.bugs||[]), code=SRC?codeAt(st.line):"", inner=st.frames[0];
+    const lhs=(code.match(/^(.*?[^=!<>+\-*\/%&|^])(?:\+=|-=|\*=|\/=|=)(?!=)/)||[])[1]||"";
+    const cands=[];                                                /* every pointer box: variables, their fields, heap fields */
+    st.frames.forEach(f=>f.vars.forEach(v=>{ if(v.init===false) return; const who=ownerOf(f,inner)+v.name;
+      if(v.kind==="ptr") cands.push({key:"v:"+v.addr,name:who,p:v.value,id:v.name});
+      FL(v).forEach(g=>{ if(g.kind==="ptr"&&!unsetF(v,g)) cands.push({key:"h:"+v.addr+":"+g.name,name:`${who}.${g.name}`,p:g.value,id:g.leaf||g.name}); }); }));
+    st.heap.forEach(n=>{ if(!n.freed) FL(n).forEach(g=>{ if(g.kind==="ptr") cands.push({key:"h:"+n.addr+":"+g.name,name:`${show(n.addr)}'s ${g.name}`,p:g.value,id:g.leaf||g.name}); }); });
+    const inCode=c=>new RegExp(`(?<![\\w])${c.id}\\b`).test(code), pick=L=>{ const a=L.filter(inCode); return (a.length?a:L).slice(0,3); };
+    const freedAt=a=>st.heap.find(n=>n.freed&&a>=n.addr&&a<n.addr+(n.size||16));
+    bad.forEach(b=>{
+      if(b.kind==="crash"&&b.sig==="SIGSEGV"&&b.addr!=null){ const fa=b.addr;
+        pick(cands.filter(c=>c.p===0?fa<4096:c.p&&fa>=c.p&&fa<c.p+4096)).forEach(c=>out.push({...c,crash:true,write:new RegExp(`(?<![\\w])${c.id}\\b`).test(lhs),
+          text:c.p===0?"this pointer was NULL":freedAt(c.p)?"this block was already freed":"this pointer holds the address that crashed"})); }
+      if((b.kind==="double free"||b.kind==="bad free")&&b.addr!=null)
+        pick(cands.filter(c=>c.p===b.addr)).forEach(c=>out.push({...c,text:b.kind==="double free"?"this block was already freed":"this address never came from malloc"})); });
+    if(st) Object.defineProperty(st,"_cul",{value:out,configurable:true}); }
+  return st._cul;
 }
 function bugHTML(s){                                               /* the red bar above the picture */
   if(!s.bugs||!s.bugs.length) return "";
   const k=BUGS.findIndex(b=>b.step===at);
-  return `<div class="bugbar" role="alert">${s.bugs.map(b=>`<div><b>${b.kind==="crash"?"Crash":"Bug"} on line ${b.line}</b>: ${esc(bugText(b,at))}${b.pending?" (the program stopped inside this line)":""}</div>`).join("")}`+
+  return `<div class="bugbar" role="alert">${s.bugs.map(b=>`<div><b>${b.kind==="crash"?(SIGNAME[b.sig]||"Crash"):"Bug"} on line ${b.line}</b>: ${esc(bugText(b,at))}${b.pending?" (the program stopped inside this line)":""}</div>`).join("")}`+
     `<span class="bn">${k+1} of ${BUGS.length} <button data-bug="-1" title="previous bug">◀</button><button data-bug="1" title="next bug">▶</button></span></div>`;
 }
 function bugJump(d){ if(!BUGS.length) return; const steps=[...new Set(BUGS.map(b=>b.step))];
@@ -2627,6 +2656,12 @@ function renderCards(s){
       labels+=label(`${RET.func} returned ${RET.txt}${RET.stored?`, now in ${RET.recv.name}`:""}`,ax,rp.y+44,AMB); }
     else if(inner&&fpos[inner.func]) labels+=label(`${RET.func} returned ${RET.txt}, but nothing stores it`,fpos[inner.func].x+150,fpos[inner.func].y+SLOTH+56,BAD);
   }
+  crashCulprits(s,at).forEach(c=>{                                 /* the pointer behind the crash: a red outline, and why */
+    const i=o.indexOf(`data-box="${c.key}"`); if(i<0) return; const j=o.indexOf("<rect",i); if(j<0) return; const e=o.indexOf("/>",j); if(e<0) return;
+    let r=o.slice(j,e).replace(/ stroke="[^"]*"/,"").replace(/ stroke-width="[^"]*"/,"");
+    o=o.slice(0,j)+r+` stroke="${BAD}" stroke-width="3"`+o.slice(e);
+    const g=k=>+((r.match(new RegExp(` ${k}="(-?[\\d.]+)"`))||[])[1]||0);
+    labels+=label(`${c.name}: ${c.text}`,g("x")+g("width")/2,g("y")+g("height")+16,BAD); });
   const mk=(id,c)=>`<marker id="m${id}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,1L10,5L0,9L2.5,5z" fill="${c}"/></marker>`;
   const big=t=>t.replace(/font-size="(\d+(?:\.\d+)?)"/g,(m,v)=>+v<11.5?'font-size="11.5"':m);        /* nothing smaller than 11.5px */
   return `<svg viewBox="0 0 ${W} ${low}" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans',system-ui,sans-serif"><defs>${mk("a",AMB)}${mk("g",MUT)}${mk("k",INK)}${mk("r",BAD)}</defs>${big(o+ghosts+arrows+labels)}</svg>`;

@@ -37,5 +37,8 @@ Small C programs and their traces, to re-check `node_cards_viewer.html` and `tra
 | ring | `struct ring { int buf[5]; int n; }` filled in a loop on the stack and malloc'd (and `int seen[20]` for "+4 more"): array fields as slots, `r->buf[2]` |
 | double_free | frees the same block twice (once in a helper, once in main): the "free(0x100) a second time" banner on line 14; glibc aborts |
 | bad_free | frees the address of a stack variable: the "that address never came from malloc" banner; glibc aborts |
+| null_read | reads through a NULL next pointer: "Segmentation fault on line 12: tried to read address 0x0 (NULL): second was NULL", second outlined red |
+| use_after_free | reads a block after free(): no crash, the use-after-free banner |
+| heap_overflow_free | writes 3 ints past a 500-int block, then frees it: glibc aborts with "free(): invalid next size (normal)" |
 
 `../remove_element.json` was made by the older trace.py: it checks old traces still open the same.

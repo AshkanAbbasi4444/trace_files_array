@@ -561,6 +561,28 @@ def snapshot():
     del LIBCALLS[:]
 
 class NoWatch(Exception): pass
+class Crashed(Exception): pass
+DIED = []                              # the signal that stopped the program, once it has
+
+def on_stop(ev):
+    """a signal (SIGSEGV, SIGABRT …): remember it, and for a bad address, which address"""
+    if not isinstance(ev, gdb.SignalEvent): return
+    e = {"kind": "signal", "name": ev.stop_signal}
+    if ev.stop_signal in ("SIGSEGV", "SIGBUS"):
+        try: e["addr"] = int(gdb.parse_and_eval("(unsigned long) $_siginfo._sifields._sigfault.si_addr"))
+        except (gdb.error, RuntimeError): pass
+    EVENTS.append(e); DIED.append(e)
+
+def crash_snapshot():
+    """the program is dying: one last picture of your frames, on the line of yours that was running"""
+    for e in EVENTS: e["pending"] = True
+    snapshot()
+    st = steps[-1]; f = gdb.selected_frame(); where = f.name()
+    while f and not ours(f): f = f.older()                   # the newest frame in your file
+    if f:
+        st["line"], st["func"] = f.find_sal().line, f.name()
+        st["crash"] = {"line": st["line"], "func": st["func"], "in": where}   # in: the function it died inside (raise, free …)
+
 def run(cmd):
     try: t = gdb.execute(cmd, to_string=True)
     except gdb.error as e:
@@ -571,12 +593,14 @@ def run(cmd):
 def advance():
     """run one line of your code; library code runs to the end without stopping"""
     run("step")
+    if DIED: raise Crashed()
     while not in_our_file():
         run("finish")
+        if DIED: raise Crashed()
 
 gdb.execute("set pagination off"); gdb.execute("set confirm off")
 gdb.execute("break " + START)
-gdb.execute("run > " + STDOUT)
+gdb.execute("run > %s 2>&1" % STDOUT)                    # stderr too: glibc says why it aborted there
 our_file = gdb.selected_frame().find_sal().symtab.filename
 OUR_TYPES = our_types()
 try:
@@ -590,6 +614,7 @@ Free()
 for pc, fn, line in lib_calls():
     try: LibCall(pc, fn, line)
     except (gdb.error, RuntimeError): pass
+gdb.events.stop.connect(on_stop)
 
 for _ in range(MAX_STEPS):
     try:
@@ -598,6 +623,11 @@ for _ in range(MAX_STEPS):
         except NoWatch:                                     # this CPU can't: finish the line without watchpoints
             disarm(); watch_ok = False; del LIBCALLS[:]
             advance()
+    except Crashed:                                         # a signal: the last picture, then stop
+        disarm()
+        try: crash_snapshot()
+        except gdb.error: pass
+        break
     except gdb.error:
         break
     finally:
