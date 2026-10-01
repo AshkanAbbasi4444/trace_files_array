@@ -14,6 +14,7 @@ ALLOCED = set()                        # every address malloc/calloc/realloc han
 REQ, HOW, COPIED = {}, {}, {}          # addr -> bytes asked for, which call gave it, bytes realloc carried over
 ROOTS = []                             # (value, what it points to) for every pointer variable on this step
 FREE_ORDER = []                        # addresses in the order free() got them, newest last
+EVENTS = []                            # bugs trace.py saw since the last snapshot: double free, bad free, a signal
 LIBCALLS = []                          # library calls since the last snapshot, and what the watchpoints caught
 WPS = []                               # the watchpoints armed right now
 watch_ok = True                        # False once the CPU refuses a hardware watchpoint
@@ -77,7 +78,14 @@ class Free(gdb.Breakpoint):
     def __init__(self): super().__init__("free", internal=True)
     def stop(self):
         try:
-            a = int(gdb.parse_and_eval("$rdi")); FREED.add(a); FREE_ORDER.append(a)
+            a = int(gdb.parse_and_eval("$rdi"))
+            if a:                                                # free(NULL) does nothing: fine
+                if a in FREED: EVENTS.append({"kind": "double free", "addr": a})
+                else:
+                    try: caller = gdb.newest_frame().older()
+                    except gdb.error: caller = None
+                    if caller and ours(caller) and a not in ALLOCED: EVENTS.append({"kind": "bad free", "addr": a})   # your code freed something malloc never gave
+            FREED.add(a); FREE_ORDER.append(a)
         except Exception: pass
         return False
 
@@ -548,6 +556,7 @@ def snapshot():
           "heap": heap, "chunks": chunks, "ret": ret, "out": console(),
           "lib": [c for c in LIBCALLS if c["writes"] or c["func"] in ALLOCS or c["partial"]]}   # what the watchpoints caught
     if glob: st["globals"] = glob
+    if EVENTS: st["events"] = EVENTS[:]; del EVENTS[:]           # what went wrong on the line that just ran
     steps.append(st)
     del LIBCALLS[:]
 
@@ -594,6 +603,8 @@ for _ in range(MAX_STEPS):
     finally:
         disarm()
 
+if EVENTS and steps:                                         # the program died inside a line: what we saw goes on the last step
+    steps[-1].setdefault("events", []).extend(dict(e, pending=True) for e in EVENTS); del EVENTS[:]
 out = os.path.splitext(os.path.basename(gdb.current_progspace().filename))[0] + ".json"
 with open(out, "w") as fh: json.dump({"file": our_file, "allocs_tracked": True, "watchpoints": watch_ok, "steps": steps}, fh)
 print("wrote %s with %d steps" % (out, len(steps)))

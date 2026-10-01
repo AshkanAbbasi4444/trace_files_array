@@ -35,5 +35,7 @@ Small C programs and their traces, to re-check `node_cards_viewer.html` and `tra
 | klist | kernel style: `struct list_head`, INIT_LIST_HEAD, list_add_tail, list_del, container_of with offsetof, `struct item { int val; struct list_head list; }`, a global LIST_HEAD and one on the stack |
 | bag_typedef | `typedef struct { int *data; int size; } Bag;` with no struct name: the Bag card (it didn't show before) and its data array |
 | ring | `struct ring { int buf[5]; int n; }` filled in a loop on the stack and malloc'd (and `int seen[20]` for "+4 more"): array fields as slots, `r->buf[2]` |
+| double_free | frees the same block twice (once in a helper, once in main): the "free(0x100) a second time" banner on line 14; glibc aborts |
+| bad_free | frees the address of a stack variable: the "that address never came from malloc" banner; glibc aborts |
 
 `../remove_element.json` was made by the older trace.py: it checks old traces still open the same.
