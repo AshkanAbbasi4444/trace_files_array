@@ -13,6 +13,7 @@ Small C programs and their traces, to re-check `node_cards_viewer.html` and `tra
 | heap_string | malloc(6) + strcpy: char slots with `\0`, strcpy's watchpoint marks, read-only string literal |
 | out_of_bounds | heap[5] and stack[4] written past the end: the red banners and the memory view |
 | index_exprs | b[n-1-i], a[(i+2)%n], a[2*i], a[i/2], c[c[i]] |
+| print_pointers | the printf panel: value, *ptr, **pptr, &value, ptr, *pptr, &ptr, pptr and a NULL pointer, against what the program printed |
 | leak_array | realloc (copied part kept, the rest ??) and a leaked heap array |
 | toy_fill, toy_swap, toy_walk, toy_big, toy_rec | stack arrays: fill loop, two i's, pointer walk, 20 elements, recursion |
 | toy_mixed, toy_list, toy_heap | an array next to a linked list, linked lists, malloc reusing a freed block |

@@ -256,6 +256,19 @@ button.icon{width:30px;padding:4px 0;font-weight:700;border-radius:50%}
 .words ul{margin:0;padding-left:18px}
 .words li{margin:1px 0;line-height:1.5}
 .words li code{font:600 12.5px var(--mono);color:var(--ink);background:#EEF2F7;border-radius:4px;padding:0 4px}
+.pf{margin-top:6px;padding-top:6px;border-top:1px solid var(--line);font:12px/1.5 var(--mono);color:var(--ink)}
+.pfh{font:600 12px var(--sans);color:var(--muted);margin-bottom:2px}
+.pfh span{font-weight:400}
+.pfn{font:12px var(--sans);color:var(--ambInk);margin:2px 0}
+.pfg{font:600 11.5px var(--sans);color:var(--muted);margin:5px 0 1px}
+.pfl{display:flex;gap:10px;align-items:baseline;white-space:pre}
+.pfl code{font:12px var(--mono);color:var(--ink)}
+.pfo{color:var(--reach);font-weight:600}
+.pfc{font-size:11.5px;padding:0 8px;margin-left:auto;border-radius:6px}
+.pinp{position:fixed;z-index:30;background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(20,33,61,.14);padding:4px 34px 10px 12px;max-width:min(860px,96vw)}
+.pinp .pf{border-top:0;margin-top:0}
+.pfx{position:absolute;right:6px;top:6px;border-radius:50%;width:24px;height:24px;padding:0;line-height:20px}
+#console .sa{border-bottom:1px dotted var(--faint);cursor:help}
 .note{font:13px system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--muted);padding:16px 4px}
 @media (prefers-reduced-motion: reduce){.pop,.c b,.hopin,.hopbox,.hopbox::after,.hoparrow{animation:none!important}.draw{animation:none!important;stroke-dashoffset:0}.c .o{display:none}}
 </style>
@@ -310,6 +323,8 @@ button.icon{width:30px;padding:4px 0;font-weight:700;border-radius:50%}
   <div class="hrow" style="grid-template-columns:1fr;gap:3px;padding:5px 0"><span class="sw txt" style="font-size:11px;white-space:nowrap;width:auto">free() wrote 16 bytes here</span><span>Under a card: a library call wrote into this block on this line (a gdb watchpoint caught it)</span></div>
   <div class="hrow"><span class="sw txt">??</span><span>Not set yet: whatever bytes were left there</span></div>
   <div class="hrow" style="grid-template-columns:1fr;gap:3px;padding:5px 0"><svg width="190" height="64" aria-hidden="true" font-family="'IBM Plex Mono',ui-monospace,Menlo,monospace" font-size="11.5"><g fill="#5B6B82" text-anchor="middle"><text x="17" y="12">[0]</text><text x="49" y="12">[1]</text><text x="81" y="12">[2]</text><text x="113" y="12">[3]</text></g><rect x="1" y="17" width="32" height="24" rx="2" fill="#fff" stroke="#A9B6C6"/><rect x="65" y="17" width="32" height="24" rx="2" fill="#fff" stroke="#A9B6C6"/><rect x="33" y="17" width="32" height="24" rx="2" fill="#fff" stroke="#14213D" stroke-width="2"/><rect x="97" y="17" width="32" height="24" rx="2" fill="#FEF3C7" stroke="#B45309" stroke-width="2"/><g font-size="13" font-weight="700" text-anchor="middle"><text x="17" y="34" fill="#14213D">0</text><text x="49" y="34" fill="#14213D">1</text><text x="81" y="34" fill="#14213D">3</text><text x="113" y="34" fill="#B45309">2</text></g><g font-weight="700"><text x="45.5" y="57" fill="#0F766E">↑i</text><text x="109.5" y="57" fill="#B45309">↑k</text></g><text x="142" y="12" fill="#94A3B8" font-style="italic">end</text><rect x="133" y="17" width="32" height="24" rx="2" fill="none" stroke="#94A3B8" stroke-dasharray="3 3"/></svg><span>An array: one box per element, its index on top. Amber: the element this line changed. Dark outline: an element it read. <b>↑i</b>: an int indexing the array right now, from any function that has a pointer to it, in that function's colour (amber if it just moved). A dashed <i>end</i> box is one past the last element. A malloc'd array is a heap card: its slots are ?? until set (calloc's start at 0), a char one shows its letters and the \0 that ends it</span></div>
+  <div class="hrow"><span class="sw txt" style="font-weight:400;color:#5B6B82">at 0x…</span><span>Under every box: the address where it lives (the simple one, or the real one: see View)</span></div>
+  <div class="hrow" style="grid-template-columns:1fr;gap:3px;padding:5px 0"><span class="sw txt" style="font-weight:400;width:auto;white-space:nowrap">printf("*ptr = %d\n", *ptr);  → 42</span><span>Hover a box, a field or an array slot: the printf lines that print its value and its address from the running function, and what they print now. Click it to pin them, with a Copy button per line (Esc lets go)</span></div>
   <div class="hrow"><span class="sw txt" style="font-size:11.5px;color:#5B6B82;border:1px solid #A9B6C6;border-radius:999px;background:#F1F5F9;padding:0 6px">read-only</span><span>A char * to a string literal: the text it points to lives in read-only memory</span></div>
   <div class="hrow"><svg width="56" height="22" aria-hidden="true"><rect x="2" y="4" width="8" height="14" rx="2" fill="#BFDBFE"/><rect x="14" y="4" width="8" height="14" rx="2" fill="#93C5FD"/><rect x="26" y="4" width="8" height="14" rx="2" fill="#3B82F6"/><rect x="38" y="4" width="8" height="14" rx="2" fill="#1D4ED8"/></svg><span>Bar on the left of a box: how many hops away it is (own, 1, 2, 3+)</span></div>
   <div class="hrow"><svg width="56" height="22" aria-hidden="true"><rect x="2" y="2" width="5" height="18" rx="2.5" fill="#334155"/><rect x="16" y="2" width="5" height="18" rx="2.5" fill="#0F766E"/><rect x="30" y="2" width="5" height="18" rx="2.5" fill="#6D28D9"/></svg><span>Each function has its own colour; main is always slate</span></div>
@@ -491,8 +506,9 @@ function touched(i){
 const REACH="#1D4ED8";
 const addrType=t=>t?(t.endsWith("*")?t+"*":t+" *"):"";
 const short=t=>(t||"").replace(/struct /g,"");
-function reach(s){                                               /* R["v:addr" | "b:addr" | "h:addr:field"] = {v, a, t} */
+function reach(s,fr){                                            /* R["v:addr" | "b:addr" | "h:addr:field"] = {v, a, t}, from fr's variables (the running function's by default) */
   const R={}, D={}; Object.defineProperty(R,"_D",{value:D}); if(!s.frames.length) return R;   /* D: every box it can reach, even by a long path */
+  fr=fr||s.frames[0];
   const blocks=s.heap.filter(n=>!n.freed), stack={}, q=[];
   s.frames.forEach(f=>f.vars.forEach(v=>{ if(v.addr) stack[v.addr]=v; }));
   const par=x=>/^[*&]/.test(x)?`(${x})`:x;                       /* x->f needs (x) when x starts with * or & */
@@ -501,7 +517,7 @@ function reach(s){                                               /* R["v:addr" |
       else if(R[k].v!==val&&R[k].alt.length<3&&!R[k].alt.some(o=>o.v===val)) R[k].alt.push({v:val,a:adr}); }   /* another way there */
     if(first&&next) q.push(next); };                            /* d: how many hops away */
   const follow=(x,v,d)=>v.kind==="ptr"&&v.init!==false&&v.value?{x,p:v.value,t:v.target,d}:null;
-  s.frames[0].vars.forEach(v=>put("v:"+v.addr,v.name,"&"+v.name,v.type,follow(v.name,v,0),0));
+  fr.vars.forEach(v=>put("v:"+v.addr,v.name,"&"+v.name,v.type,follow(v.name,v,0),0));
   while(q.length){
     const {x,p,t,d:d0}=q.shift(), sv=stack[p], d=d0+1;
     if(sv&&(!t||t===sv.type)){ put("v:"+p,"*"+x,x,sv.type,follow("*"+x,sv,d),d); continue; }   /* another variable, like main's head */
@@ -518,8 +534,126 @@ function reach(s){                                               /* R["v:addr" |
   }
   return R;
 }
+/* ---------- how to print a box: printf lines for its value and its address, from the running function's names ---------- */
+function allNames(s,fr){                                         /* key -> every way fr's variables name that box ({v, a}), up to 4 hops: value, *ptr, **pptr … */
+  const A={}, blocks=s.heap.filter(n=>!n.freed), stack={}, q=[];
+  s.frames.forEach(f=>f.vars.forEach(v=>{ if(v.addr) stack[v.addr]=v; }));
+  const par=x=>/^[*&]/.test(x)?`(${x})`:x;
+  const put=(k,v,a,next)=>{ if(v.length>40) return; const L=A[k]=A[k]||[]; if(L.length>=12||L.some(o=>o.v===v)) return; L.push({v,a}); if(next&&next.d<=4) q.push(next); };
+  const follow=(x,u,d)=>u.kind==="ptr"&&u.init!==false&&u.value?{x,p:u.value,t:u.target,d}:null;
+  fr.vars.forEach(v=>put("v:"+v.addr,v.name,"&"+v.name,follow(v.name,v,1)));
+  while(q.length){
+    const {x,p,t,d}=q.shift(), sv=stack[p];
+    if(sv&&(!t||t===sv.type)){ put("v:"+p,"*"+x,x,follow("*"+x,sv,d+1)); continue; }
+    if(sv) continue;
+    const b=blocks.find(n=>p>=n.addr&&p<n.addr+(n.size||16)); if(!b) continue;
+    if(p===b.addr){ put("b:"+b.addr,"*"+x,x,null);
+      if(b.kind!=="array") (b.fields||[]).forEach(f=>put("h:"+b.addr+":"+f.name,par(x)+"->"+f.name,"&"+par(x)+"->"+f.name,follow(par(x)+"->"+f.name,f,d+1))); }
+    else { const f=(b.fields||[]).find(f=>b.addr+f.offset===p); if(f) put("h:"+b.addr+":"+f.name,"*"+x,x,follow("*"+x,f,d+1)); }
+  }
+  return A;
+}
+function pfSpec(t){                                              /* the printf conversion for a C type */
+  t=bare(t);
+  if(/\*$/.test(t)||/\]$/.test(t)) return {sp:"%p",ptr:true};
+  if(/^(?:unsigned long(?: int)?|long unsigned(?: int)?|size_t|uintptr_t)$/.test(t)) return {sp:"%zu"};
+  if(/^(?:unsigned long long|long long unsigned)(?: int)?$/.test(t)) return {sp:"%llu"};
+  if(/^long long(?: int)?$/.test(t)) return {sp:"%lld"};
+  if(/^(?:long|long int|ssize_t|ptrdiff_t)$/.test(t)) return {sp:"%ld"};
+  if(/^(?:unsigned|unsigned int)$/.test(t)) return {sp:"%u"};
+  if(/^(?:unsigned short|unsigned short int)$/.test(t)) return {sp:"%hu"};
+  if(/^(?:short|short int)$/.test(t)) return {sp:"%hd"};
+  if(/^(?:signed |unsigned )?char$/.test(t)) return {sp:"%c",chr:true};
+  if(/^long double$/.test(t)) return {sp:"%Lf",flt:true};
+  if(/^(?:double|float)$/.test(t)) return {sp:"%f",flt:true};
+  if(/^struct\b|^union\b/.test(t)) return {sp:null};
+  return {sp:"%d"};
+}
+function pfOut(t,v,hex){                                         /* what printf prints for a value of type t: v (a number), or its bytes */
+  const S=pfSpec(t);
+  if(S.ptr) return v===null||v===undefined?"?":v===0?"(nil)":show(v);   /* glibc prints NULL as (nil) */
+  if(S.flt){ const b=hx(hex); if(b.length!==4&&b.length!==8) return "?"; const dv=new DataView(new Uint8Array(b.map(x=>parseInt(x,16))).buffer);
+    return (b.length===4?dv.getFloat32(0,true):dv.getFloat64(0,true)).toFixed(6); }
+  if(v===null||v===undefined){ const b=hx(hex); if(!b.length||b.length>8) return "?"; v=Number(elemText(t,b)); }
+  if(S.chr){ const c=v&255; return c>=32&&c<127?String.fromCharCode(c):c===0?"(the byte 0: prints nothing)":c===10?"(a newline)":`(the byte ${c})`; }
+  return String(v);
+}
+function cString(s,a){                                           /* the string at address a on this step, if the trace has its bytes */
+  if(!a) return null; let out="";
+  for(let k=0;k<256;k++){ const b=memRead(s,a+k,1); if(!b) return null; const c=parseInt(b[0],16); if(!c) return out; out+=c>=32&&c<127?String.fromCharCode(c):"?"; }
+  return out+"…";
+}
+const pfCast=e=>/[-+ ]/.test(e.replace(/->/g,"").replace(/\[[^\]]*\]/g,""))?`(void *)(${e})`:`(void *)${e}`;     /* (void *)ptr, (void *)&p[-1], (void *)(nums + 2) */
+function printfFor(s,key,slot){                                  /* {fn, note, val:[{e, t, out, line?}], adr:[…]}: the lines that print one box */
+  if(!s.frames.length) return null;
+  const inner=s.frames[0], main=s.frames[s.frames.length-1];
+  const build=fr=>{
+    const A=allNames(s,fr), val=[], adr=[];
+    const add=(L,e,t,out,line)=>{ if(!L.some(x=>x.e===e&&x.t===t)) L.push({e,t,out,line}); };
+    if(slot!=null){                                                /* one array slot: a[2], *(a + 2), &a[2] */
+      const b=boxIn(s,key)||{}, arr=b.v||b.n; if(!arr) return null;
+      const D=arrDims(arr); if(!D) return null;
+      const set=arr.init!==false&&(!arr.eset||!!arr.eset[slot]), raw=memRead(s,arr.addr+slot*D.w,D.w);
+      const out=arr.freed?"(freed: reading it is a bug)":!set?"?? (not set yet: whatever bytes are there)":raw?(isChr(D.el,D.w)?pfOut(D.el,null,raw.join("")):pfOut(D.el,null,raw.join(""))):"?";
+      const bases=[];                                              /* names for the array's start, or pointers into it */
+      (A[key]||[]).forEach(o=>bases.push({e:key.startsWith("b:")?o.a:o.v,base:0}));
+      fr.vars.forEach(u=>{ if(u.kind!=="ptr") return; const b0=viewBase(u,arr,D.w); if(b0!==null&&!bases.some(x=>x.e===u.name)) bases.push({e:u.name,base:b0}); });
+      bases.forEach(({e,base})=>{ const k=slot-base, pe=/[^\w>.-]/.test(e.replace(/->/g,""))?`(${e})`:e;
+        add(val,`${pe}[${k}]`,D.el,out); add(val,k?`*(${e} ${k<0?"-":"+"} ${Math.abs(k)})`:`*${pe}`,D.el,out);
+        add(adr,`&${pe}[${k}]`,D.el+" *",show(arr.addr+slot*D.w)); add(adr,k?`${e} ${k<0?"-":"+"} ${Math.abs(k)}`:e,D.el+" *",show(arr.addr+slot*D.w)); });
+      return {val,adr};
+    }
+    const b=boxIn(s,key); if(!b) return null;
+    const L=(A[key]||[]).slice();
+    if(b.v&&arrDims(b.v)) fr.vars.forEach(u=>{ if(u.kind==="ptr"&&viewBase(u,b.v,arrDims(b.v).w)===0&&!L.some(o=>o.v===u.name)) L.push({v:u.name,a:u.name}); });   /* a pointer to its start works like its name */
+    if(b.v||b.fd){                                                 /* a variable or a struct field */
+      const u=b.v||b.fd, t=u.type, D=b.v&&arrDims(u), unset=u.init===false;
+      const hex=b.v?u.bytes:fieldHex(b.n,u), out=unset?"?? (not set yet: whatever bytes are there)":pfOut(t,u.kind==="ptr"||u.kind==="int"?u.value:null,hex);
+      L.forEach(o=>{
+        if(D){ const n=Math.min(D.n,ARRMAX), parts=arrSlots(u,true);   /* a whole array: one element at a time */
+          add(val,o.v,t,(parts?parts.parts.slice(0,n).map((x,i)=>!u.eset||u.eset[i]?x:"??").join(" "):"?")+(D.n>n?" …":""),`for (int i = 0; i < ${D.n}; i++) printf("${pfSpec(D.el).sp||"%d"} ", ${/\W/.test(o.v)?`(${o.v})`:o.v}[i]);`);
+          if(o.a!==o.v) add(adr,o.a,t+" *",show(u.addr)); add(adr,`&${/\W/.test(o.v)?`(${o.v})`:o.v}[0]`,D.el+" *",show(u.addr)); if(o.a===o.v) add(adr,o.v,D.el+" *",show(u.addr)); return; }
+        add(val,o.v,t,out);
+        const m=o.v.match(/^(.*)->(\w+)$/); if(m) add(val,`(*${m[1]}).${m[2]}`,t,out);   /* head->val is (*head).val */
+        add(adr,o.a,t+" *",show(b.v?u.addr:b.n.addr+u.offset));
+        if(u.kind==="ptr"&&/char$/.test(bare(u.target))&&u.value&&!unset){   /* a char *: %s prints the string it points to */
+          const str=u.cstr!=null?u.cstr:cString(s,u.value); if(str!=null) add(val,o.v,"char *s",str); } });
+      return {val,adr};
+    }
+    const n=b.n;                                                   /* a heap block: its fields, or its elements */
+    const D=n.kind==="array"&&arrDims(n);
+    L.forEach(o=>{ const pe=/[^\w>.-]/.test(o.a.replace(/->/g,""))?`(${o.a})`:o.a;
+      add(adr,o.a,n.type+" *",show(n.addr));
+      if(n.freed) return;
+      if(D&&isChr(D.el,D.w)){ const str=cString(s,n.addr); if(str!=null) add(val,o.a,"char *s",str); }   /* a char array: %s prints it up to its \0 */
+      else if(D){ const k=Math.min(D.n,ARRMAX), parts=arrSlots(n,true);
+        add(val,o.v,n.type,(parts?parts.parts.slice(0,k).map((x,i)=>!n.eset||n.eset[i]?x:"??").join(" "):"?")+(D.n>k?" …":""),`for (int i = 0; i < ${D.n}; i++) printf("${pfSpec(D.el).sp||"%d"} ", ${pe}[i]);`); }
+      else (n.fields||[]).forEach(fd=>add(val,`${pe}->${fd.name}`,fd.type,pfOut(fd.type,fd.kind==="ptr"||fd.kind==="int"?fd.value:null,fieldHex(n,fd)))); });
+    return {val,adr};
+  };
+  let r=build(inner), fn=inner.func, note="";
+  if(!r||(!r.val.length&&!r.adr.length)){
+    if(main!==inner){ const m=build(main); if(m&&(m.val.length||m.adr.length)){ r=m; fn=main.func; note=`${inner.func} can't reach this box: these use ${main.func}'s names`; } }
+    if(!note) return {fn,note:`no variable in ${inner.func}${main!==inner?` or ${main.func}`:""} reaches this box`,val:[],adr:[]};
+  }
+  const order=L=>L.sort((x,y)=>x.e.length-y.e.length||0).slice(0,6);   /* shortest first, 6 at most */
+  const val=order(r.val), adr=order(r.adr), W=Math.max(0,...val.concat(adr).filter(x=>!x.line).map(x=>x.e.length));
+  const fmt=x=>{ if(x.line) return x.line; const S=x.t==="char *s"?{sp:"%s"}:pfSpec(x.t);
+    if(!S.sp) return `/* a struct: print its fields one at a time */`;
+    return `printf("${x.e.padEnd(W)} = ${S.sp}\\n", ${S.ptr?pfCast(x.e):x.e});`; };
+  val.forEach(x=>x.code=fmt(x)); adr.forEach(x=>x.code=fmt(x));
+  return {fn,note,val,adr};
+}
+function printfHTML(P,pin){                                      /* the panel under the tooltip, or the pinned one with Copy buttons */
+  if(!P) return "";
+  const row=x=>`<div class="pfl"><code>${esc(x.code)}</code><span class="pfo">→ ${esc(x.out)}</span>${pin?`<button class="pfc" data-copy="${esc(x.code)}">Copy</button>`:""}</div>`;
+  const grp=(t,L)=>L.length?`<div class="pfg">${t}</div>`+L.map(row).join(""):"";
+  return `<div class="pf"><div class="pfh">print it from ${esc(P.fn)}${pin?"":`<span> · click to pin</span>`}</div>`+(P.note?`<div class="pfn">${esc(P.note)}</div>`:"")+
+    grp("its value",P.val)+grp("its address",P.adr)+`</div>`;
+}
 const reachTip=(rc,who)=>rc?`\n${who} gets it with ${rc.v}  (${rc.t})\nits address is ${rc.a}  (${addrType(rc.t)})\nchange it: ${rc.v} = …;`+
   (rc.alt.length?`\nalso: ${rc.alt.map(o=>o.v).join(", ")}`:""):"";
+const clip=(t,n)=>t.length>n?t.slice(0,Math.max(1,n-1))+"…":t;      /* at most n characters */
 const orText=(a,alts,max)=>alts.length?(a.length+4+alts[0].length<=max?`${a} or ${alts[0]}`:`${a} +${alts.length}`):a;   /* "head or *pp", or "head +1" if too long */
 
 /* ---------- at a call: where each parameter's value came from ---------- */
@@ -802,10 +936,10 @@ function arrSlots(v,full){                                       /* {n, w, el, p
   if(chr&&parts.length===1&&/^"/.test(parts[0])) return null;     /* it looks like a string: stays text */
   return {n,w,el,parts,heap:false,chr:false};
 }
-function arrGeo(A,cw,name,type,minW){                            /* where things sit in the box, from its left edge */
+function arrGeo(A,cw,name,type,minW,addrLen){                    /* where things sit in the box, from its left edge */
   const shown=Math.min(A.n,ARRMAX), more=A.n-shown, x0=11, right=x0+shown*cw;
   const moreW=more?Math.ceil(6.9*`+${more} more`.length+14):0, moreL=right+4, endL=(more?moreL+moreW:right)+4, endW=Math.max(24,cw);
-  const head=11+7.6*name.length+14+6.9*type.length+8;           /* the name and the type both fit on top */
+  const head=11+7.6*name.length+14+6.9*type.length+8+(addrLen?6.9*addrLen+10:0);   /* the name, its address and the type all fit on top */
   return {cw,n:A.n,shown,more,x0,moreL,moreW,endL,endW,ew:A.w,w:Math.ceil(Math.max(minW,head,endL+endW+8))};
 }
 const slotX=(g,k)=>k<g.shown?g.x0+k*g.cw+g.cw/2:k<g.n?g.moreL+g.moreW/2:g.endL+g.endW/2;   /* a slot's centre; n is one past the end */
@@ -1496,7 +1630,7 @@ function renderCards(s){
       const t=fw?"··":t0.length>mc?t0.slice(0,mc-1)+"…":t0, w0=C?wasTxt(i):null, here=colAt(i), nul=A.chr&&i===z, after=A.chr&&z>=0&&i>z, faint=dead||after||!set(i);
       const tip=`${whoA}[${i}] = ${A.chr&&t0.length===1?`'${t0}'`:t0}  (${el})\nat ${show(a)}${simple?`, real ${real(a)}`:""}`+(nul?"\nthe \\0 that ends the string":after?"\nafter the \\0: leftover bytes, not part of the string":"")+
         (fw?"\nfree() wrote the allocator's data here (the next free block, the double-free key)":dead?"\nfreed: leftover bytes":"")+(C?`\nchanged by this line${w0!=null?`: it was ${w0}`:""}`:Rd?"\nused by this line":"")+(here?"\n"+here.names.map(mDesc).join("\n"):"")+notes;
-      const c=`<g data-tip="${esc(tip)}"><rect x="${cx}" y="${c0}" width="${cw}" height="24" rx="2" fill="${C?AMBG:nul?PNL:faint?"#F8FAFC":"#fff"}" stroke="${C?AMB:Rd?INK:BORDER}" stroke-width="${C||Rd?2:1}"${dead?' stroke-dasharray="3 2"':""}/>`+
+      const c=`<g data-tip="${esc(tip)}" data-slot="${A.heap?"b":"v"}:${v.addr}|${i}"><rect x="${cx}" y="${c0}" width="${cw}" height="24" rx="2" fill="${C?AMBG:nul?PNL:faint?"#F8FAFC":"#fff"}" stroke="${C?AMB:Rd?INK:BORDER}" stroke-width="${C||Rd?2:1}"${dead?' stroke-dasharray="3 2"':""}/>`+
         `<text x="${cx+cw/2}" y="${c0+16.5}" font-size="13" font-weight="${nul?600:700}" text-anchor="middle" fill="${C?AMB:nul?MUT:dead||after?FAINT:set(i)?INK:MUT}" ${MONO}>${C?`<tspan class="pop">${esc(t)}</tspan>`:esc(t)}</text></g>`;
       if(C||Rd) hot+=c; else cells+=c;                             /* outlined ones on top, so their whole border shows */
       h+=`<text x="${cx+cw/2}" y="${c0-5}" font-size="11.5" text-anchor="middle" fill="${MUT}" ${MONO}>[${i}]</text>`;
@@ -1538,22 +1672,23 @@ function renderCards(s){
       `<rect x="${bx}" y="${by}" width="${sl.w}" height="${SLOTH}" rx="8" fill="${out?"#F1F3F5":"#fff"}" stroke="${I?INK:BORDER}" stroke-width="${I?2.2:1}"/>`+
       (hd!==undefined?`<rect x="${bx+2}" y="${by+7}" width="4" height="${SLOTH-14}" rx="2" fill="${hopc(hd)}"/>`:"")+
       `<text x="${bx+11}" y="${by+17}" font-size="12.5" font-weight="700" fill="${INK}" ${MONO}>${esc(v.name)}</text>`+
+      `<text x="${bx+11+7.6*v.name.length+10}" y="${by+17}" font-size="11.5" fill="${MUT}" ${MONO}>at ${show(v.addr)}</text>`+     /* where it lives: always shown */
       `<text x="${bx+sl.w-8}" y="${by+17}" font-size="10" text-anchor="end" fill="${MUT}">${esc(v.type)}</text>`+body.h+
       (out?`<text x="${bx+11}" y="${by+SLOTH-8}" font-size="10" font-style="italic" fill="${MUT}">not reachable from here</text>`
          :rc&&rc.v!==v.name?`<text x="${bx+11}" y="${by+SLOTH-8}" font-size="11" font-weight="700" fill="${REACH}" ${MONO}${EX(rc.v)}>= ${esc(rc.v)}</text>`:"")+
-      `<text class="hov" x="${bx+sl.w-8}" y="${by+SLOTH-8}" font-size="10" text-anchor="end" fill="${MUT}" ${MONO}>at ${show(v.addr)}${v.decl?` · line ${v.decl}`:""}</text></g>`;
+      (v.decl?`<text class="hov" x="${bx+sl.w-8}" y="${by+SLOTH-8}" font-size="10" text-anchor="end" fill="${MUT}" ${MONO}>line ${v.decl}</text>`:"")+`</g>`;
   };
   [...s.frames].reverse().forEach(f=>{                           /* address order: main's frame on the left */
     const vars=[...f.vars].sort((a,b)=>(b.addr||0)-(a.addr||0));
     let slots=vars.map(v=>{ const A=arrSlots(v); if(!A) return {v,addr:v.addr||0,w:SLOTW};   /* an array gets one box per element */
-      const g=arrGeo(A,AP.cw.get(f.func+"|"+v.name+"|"+v.type)||30,v.name,v.type,SLOTW); return {v,addr:v.addr||0,w:g.w,A,g}; });
+      const g=arrGeo(A,AP.cw.get(f.func+"|"+v.name+"|"+v.type)||30,v.name,v.type,SLOTW,("at "+show(v.addr)).length); return {v,addr:v.addr||0,w:g.w,A,g}; });
     if(FRAMEINT&&f.rbp&&f.frame_bytes){                            /* the rest of the frame: return address, saved rbp, unused slots */
       const fb=hx(f.frame_bytes), lo=f.lo??f.rsp, hi=f.rbp+16, cover=new Set();
       vars.forEach(v=>{ if(v.addr) for(let a=v.addr;a<v.addr+(v.size||8);a++) cover.add(a); });
       for(let a=hi-8;a>=lo;a-=8){
         if([0,1,2,3,4,5,6,7].some(i=>cover.has(a+i))||a-lo+8>fb.length) continue;
         const ss=sysSlot(f,a,fb,lo);
-        slots.push({e:{sys:ss.name,tip:ss.tip,addr:a,val:le(fb.slice(a-lo,a-lo+8))},addr:a,w:ss.name==="not used"?66:120});
+        slots.push({e:{sys:ss.name,tip:ss.tip,addr:a,val:le(fb.slice(a-lo,a-lo+8))},addr:a,w:Math.max(ss.name==="not used"?66:120,Math.ceil(6.9*("at "+show(a)).length)+18)});   /* room for its address */
       }
       slots.sort((x,y)=>y.addr-x.addr);
     }
@@ -1578,7 +1713,7 @@ function renderCards(s){
           `<rect x="${bx}" y="${by}" width="${sl.w}" height="${SLOTH}" rx="8" fill="#EBEEF1" stroke="none"/>`+
           `<text x="${bx+9}" y="${by+17}" font-size="11" font-weight="600" fill="${MUT}">${e.sys}</text>`+
           (val?`<text x="${bx+9}" y="${by+40}" font-size="${val.length>10?10:12}" font-weight="700" fill="${MUT}" ${MONO}>${esc(val)}</text>`:"")+
-          `<text class="hov" x="${bx+9}" y="${by+58}" font-size="10" fill="${FAINT}" ${MONO}>at ${show(e.addr)}</text></g>`;
+          `<text x="${bx+9}" y="${by+58}" font-size="11.5" fill="${MUT}" ${MONO}>at ${show(e.addr)}</text></g>`;
         return;
       }
       if(sl.A){ o+=arrBox(sl,f,bx,by); return; }
@@ -1586,11 +1721,12 @@ function renderCards(s){
       const role=`\n${v.arg?"parameter":"local"} of ${f.func}${v.decl?`, declared on line ${v.decl}`:""}`+(ci?`\n${ci.text}`:"")+(out?`\n${inner.func} can't reach this box`:"")+(v.addr?libTip(s,v.addr,v.size||8):"");
       const val=v.init===false?"??":v.kind==="int"?String(v.value):v.kind==="other"?(arrText(v.type,v.size,v.bytes,22)||"—"):(v.value===null?"—":show(v.value));   /* ?? only means: not set yet */
       pos[key]={x:bx+SLOTW2/2,y:by+SLOTH,C,I,F,who:(f===inner?"":f.func+"'s ")+v.name};
-      const lit=v.cstr!=null&&v.init!==false?(()=>{                /* a char * to a string literal: its text, and whether it's read-only */
+      const lit=v.cstr!=null&&v.init!==false&&!ci&&!out?(()=>{                /* a char * to a string literal: its text, and whether it's read-only */
         const tag=v.cstr_ro?78:0, room=Math.max(4,Math.floor((SLOTW2-22-tag)/6.9)-2), q=JSON.stringify(v.cstr).slice(1,-1), t=`"${q.length>room?q.slice(0,room-1)+"…":q}${v.cstr_cut&&q.length<=room?"…":""}"`;
         return `<g data-tip="${esc(`${v.name} points to the string "${v.cstr}"${v.cstr_cut?"… (more than 64 bytes)":""}\n`+(v.cstr_ro?"it lives in read-only memory: writing to it crashes the program (SIGSEGV)":"it lives in the program's global data"))}">`+
-          `<text x="${bx+11}" y="${by+60}" font-size="11.5" font-weight="600" fill="${INK}" ${MONO}>${esc(t)}</text>`+
-          (v.cstr_ro?`<rect x="${bx+SLOTW2-8-tag}" y="${by+49}" width="${tag}" height="15" rx="7.5" fill="${PNL}" stroke="${BORDER}"/><text x="${bx+SLOTW2-8-tag/2}" y="${by+60}" font-size="11.5" font-weight="600" text-anchor="middle" fill="${MUT}">read-only</text>`:"")+`</g>`; })():"";
+          `<text x="${bx+11}" y="${by+77}" font-size="11.5" font-weight="600" fill="${INK}" ${MONO}>${esc(t)}</text>`+
+          (v.cstr_ro?`<rect x="${bx+SLOTW2-8-tag}" y="${by+66}" width="${tag}" height="15" rx="7.5" fill="${PNL}" stroke="${BORDER}"/><text x="${bx+SLOTW2-8-tag/2}" y="${by+77}" font-size="11.5" font-weight="600" text-anchor="middle" fill="${MUT}">read-only</text>`:"")+`</g>`; })():"";   /* on the bottom line: the address keeps its own */
+      const at="at "+show(v.addr), aroom=Math.floor((SLOTW2-8-(11+6.9*at.length+12))/6.9)-2;     /* the hover "= &x" fits beside the address */
       if(v.kind==="other"&&/^"/.test(val)) pos[key].txt={x0:bx+11,ch:0.6*(val.length>10?12:15),len:val.length};   /* a string: a pointer lands on its char */
       o+=`<g data-box="${key}" data-lad="${v.addr}|${esc(f.func)}|${esc(v.name)}" data-tip="${esc(v.name+" ("+v.type+")"+role+"\nreal address "+real(v.addr)+"\nvalue "+(v.value===null?"??":real(v.value))+(v.init===false?"\nnot set yet: leftover bytes":"")+reachTip(rc,inner.func))}"${F?DIM:""}>`+
         `<rect x="${bx}" y="${by}" width="${SLOTW2}" height="${SLOTH}" rx="8" fill="${C?AMBG:out?"#F1F3F5":"#fff"}" stroke="${C?AMB:I?INK:BORDER}" stroke-width="${C||I?2.2:1}"/>`+
@@ -1599,11 +1735,11 @@ function renderCards(s){
         (v.name.length>7?"":`<text x="${bx+SLOTW2-8}" y="${by+17}" font-size="10" text-anchor="end" fill="${MUT}">${esc(v.type)}</text>`)+
         `<text x="${bx+11}" y="${by+40}" font-size="${val.length>10?12:15}" font-weight="800" fill="${C?AMB:INK}" ${MONO}>${C?`<tspan class="pop">${esc(val)}</tspan>`:esc(val)}</text>`+
         (rc?`<text x="${bx+SLOTW2-8}" y="${by+40}" font-size="11" font-weight="700" text-anchor="end" fill="${REACH}" ${MONO}${EX(rc.v)}>= ${esc(orText(rc.v,rc.alt.map(o=>o.v),12))}</text>`:"")+
-        (lit?lit:`<text class="hov" x="${bx+11}" y="${by+58}" font-size="10" fill="${MUT}" ${MONO}>at ${show(v.addr)}</text>`)+
-        (rc?`<text class="hov" x="${bx+SLOTW2-8}" y="${by+58}" font-size="10" font-weight="700" text-anchor="end" fill="${REACH}" ${MONO}${EX(rc.a)}>= ${esc(orText(rc.a,rc.alt.map(o=>o.a),11))}</text>`:"")+
+        `<text x="${bx+11}" y="${by+58}" font-size="11.5" fill="${MUT}" ${MONO}>${esc(at)}</text>`+                     /* where it lives: always shown */
+        (rc&&aroom>=3?`<text class="hov" x="${bx+SLOTW2-8}" y="${by+58}" font-size="10" font-weight="700" text-anchor="end" fill="${REACH}" ${MONO}${EX(rc.a)}>= ${esc(clip(orText(rc.a,rc.alt.map(o=>o.a),Math.min(11,aroom)),aroom))}</text>`:"")+
         (ci?`<text x="${bx+11}" y="${by+76}" font-size="10" font-weight="700" fill="${AMB}" ${MONO}>${esc(ci.text)}</text>`                     /* the call: where this came from */
            :out?`<text x="${bx+11}" y="${by+76}" font-size="10" font-style="italic" fill="${MUT}">not reachable from here</text>`
-           :(rc?`<text class="hov" x="${bx+11}" y="${by+76}" font-size="10" fill="${MUT}" ${MONO}${EX(rc.v)}>change: <tspan fill="${REACH}" font-weight="700">${esc(rc.v)} = …;</tspan></text>`:"")+
+           :lit?lit:(rc?`<text class="hov" x="${bx+11}" y="${by+76}" font-size="10" fill="${MUT}" ${MONO}${EX(rc.v)}>change: <tspan fill="${REACH}" font-weight="700">${esc(rc.v)} = …;</tspan></text>`:"")+
             (v.decl?`<text class="hov" x="${bx+SLOTW2-8}" y="${by+76}" font-size="10" text-anchor="end" fill="${MUT}" ${MONO}>line ${v.decl}</text>`:""))+`</g>`;
     });
     if(SP){                                                        /* pills under the slots, and a bracket under the red zone */
@@ -1732,12 +1868,13 @@ function renderCards(s){
       const fy=HY+42+j*FH, key="h:"+n.addr+":"+fd.name, Cf=CH.has(key), rf=RC[key];
       const txt=fd.kind==="ptr"?show(fd.value):fd.kind==="other"?(arrText(fd.type,fd.size,fieldHex(n,fd),14)||"—"):(fd.value===null?"—":String(fd.value));
       const fa=fd.offset!=null?n.addr+fd.offset:null, faTxt=fa===null?"":simple?show(fa):"…"+fa.toString(16).slice(-4);   /* this field's own address */
+      const croom=Math.floor((CW-10-(faTxt?6.9*(faTxt.length+3)+10:0)-11)/6.9)-13;   /* the hover "change: … = …;" stops before the address */
       o+=`<g data-box="${key}" data-tip="${esc(fd.name+" ("+fd.type+")"+(fa===null?"":"\nat "+real(fa)+(simple?" ("+show(fa)+")":"")+", the block's start + "+fd.offset)+reachTip(rf,inner?inner.func:""))}">`+
          `<rect x="${bx+3}" y="${fy+3}" width="${CW-6}" height="${FH-6}" rx="4" fill="${Cf?AMBG:"transparent"}"/>`+
          `<text x="${bx+11}" y="${fy+17}" font-size="10.5" font-weight="${rf?700:400}" fill="${rf?REACH:MUT}" ${MONO}${rf?EX(rf.v):""}>${esc(rf?orText(rf.v,rf.alt.map(o=>o.v),16):fd.name)}</text>`+
          `<text x="${bx+CW-10}" y="${fy+17}" font-size="${txt.length>7?12:14}" font-weight="800" text-anchor="end" fill="${Cf?AMB:INK}" ${MONO}>${Cf?`<tspan class="pop">${esc(txt)}</tspan>`:esc(txt)}</text>`+
-         (rf?`<text class="hov" x="${bx+11}" y="${fy+30}" font-size="10" fill="${MUT}" ${MONO}${EX(rf.v)}>change: <tspan fill="${REACH}">${esc(rf.v)} = …;</tspan></text>`:"")+
-         (faTxt&&(!rf||rf.v.length<=14)?`<text class="hov" x="${bx+CW-10}" y="${fy+30}" font-size="10" text-anchor="end" fill="${FAINT}" ${MONO}>at ${faTxt}</text>`:"")+`</g>`;
+         (rf&&croom>=4?`<text class="hov" x="${bx+11}" y="${fy+30}" font-size="10" fill="${MUT}" ${MONO}${EX(rf.v)}>change: <tspan fill="${REACH}">${esc(clip(rf.v,croom))} = …;</tspan></text>`:"")+
+         (faTxt?`<text x="${bx+CW-10}" y="${fy+30}" font-size="11.5" text-anchor="end" fill="${MUT}" ${MONO}>at ${faTxt}</text>`:"")+`</g>`;
     });
     const lw=libIn(s,n.addr,n.size||16);                          /* a library call wrote into it on this line */
     o+=(lost?`<text x="${bx+CW/2}" y="${HY+CARDH+17}" font-size="12.5" font-weight="700" text-anchor="middle" fill="${BAD}">leaked: nothing points here</text>`:"")+
@@ -2091,11 +2228,13 @@ function render(){
     if(svg) svg.style.minWidth="0";                                                              /* the cards already wrap to fit */
     if(vb){ const W=+vb.split(" ")[2], zz=z||Math.max(0.8,(pic.clientWidth-20)/W);                      /* fit, but never below 80% */
       if(z||zz>(pic.clientWidth-20)/W){ svg.style.width=(W*zz)+"px"; svg.style.minWidth="0"; } } }
-  renderWatch(); showWatchBadges();
+  renderWatch(); showWatchBadges(); if(PIN) showPin(); tip._el=null;
   if(view==="mem"){ drawArrows(true);
     const zw=pic.querySelector(".zw"), zo=pic.querySelector(".zo"); if(zw&&zo){ zo.style.width=zw.offsetWidth*z+"px"; zo.style.height=zw.offsetHeight*z+"px"; } }
   const con=$("console"), prevOut=at>0?(TRACE.steps[at-1].out||""):"", outTxt=s.out||"";
-  con.innerHTML=outTxt?esc(outTxt).replace(/\n$/,"").split("\n").map((l,i,arr)=>`<div style="${(i===arr.length-1&&outTxt!==prevOut)?"background:"+AMBG+";font-weight:700":""}">${l}</div>`).join(""):`<div style="color:${MUT}">(no output yet)</div>`;
+  const addrs=l=>l.replace(/\b0x[0-9a-f]{4,16}\b/g,m=>{ const n=parseInt(m,16), sm=simple&&Number.isSafeInteger(n)?simpleOf(n):null;   /* %p output: the same simple addresses as the boxes */
+    return sm===null?m:`<span class="sa" title="real address ${m}">0x${sm.toString(16)}</span>`; });
+  con.innerHTML=outTxt?esc(outTxt).replace(/\n$/,"").split("\n").map((l,i,arr)=>`<div style="${(i===arr.length-1&&outTxt!==prevOut)?"background:"+AMBG+";font-weight:700":""}">${addrs(l)}</div>`).join(""):`<div style="color:${MUT}">(no output yet)</div>`;
   const RA=ranAt(at), ran=RA?RA.line:0;
   $("bugB").hidden=!BUGS.length; $("bugB").textContent=`${BUGS.length} bug${BUGS.length===1?"":"s"}`;
   $("pos").innerHTML=`<b>${at+1}</b>/${TRACE.steps.length}<span>${ran?`ran ${ran} → `:""}next ${s.line}</span><span>in ${esc(s.func)}</span>`;
@@ -2161,7 +2300,7 @@ $("play").onclick=play;
 document.addEventListener("keydown",e=>{
   if(e.ctrlKey||e.metaKey||e.altKey) return;
   if(e.target&&e.target.matches&&e.target.matches("input[type=text]")) return;                          /* typing a watch expression */
-  if(e.key==="Escape"){ help(false); closeMenu(); return; }
+  if(e.key==="Escape"){ help(false); closeMenu(); unpin(); return; }
   if(e.key==="?"){ help($("help").hidden); return; }
   if(!$("help").hidden) return;
   if(e.key===" "&&e.target&&e.target.matches&&e.target.matches("input[type=checkbox],select,button")) return;   /* Space still works on the focused control */
@@ -2169,10 +2308,38 @@ document.addEventListener("keydown",e=>{
   else if(e.key===" "){ e.preventDefault(); play(); }
   else if(e.key==="v"||e.key==="V") setView(view==="mem"?"cards":"mem");
 });
-const tip=document.createElement("div");
-tip.style.cssText="position:fixed;display:none;background:#fff;border:1px solid #708090;border-radius:6px;padding:6px 8px;font:12px/1.4 ui-monospace,Menlo,monospace;box-shadow:0 2px 8px rgba(0,0,0,.12);pointer-events:none;z-index:9";
+const tip=document.createElement("div"); tip.id="tip";
+tip.style.cssText="position:fixed;display:none;background:#fff;border:1px solid #708090;border-radius:6px;padding:6px 8px;font:12px/1.4 ui-monospace,Menlo,monospace;box-shadow:0 2px 8px rgba(0,0,0,.12);pointer-events:none;z-index:9;max-width:min(860px,96vw)";
 document.body.appendChild(tip);
 let HOVEX=null;
+function placeTip(el,x,y){                                        /* next to the mouse, but inside the window */
+  el.style.left="0px"; el.style.top="0px";
+  const w=el.offsetWidth, h=el.offsetHeight;
+  el.style.left=Math.max(4,Math.min(x+14,innerWidth-w-8))+"px"; el.style.top=(y+14+h>innerHeight-4?Math.max(4,y-h-10):y+14)+"px";
+}
+function boxOf(el){                                               /* the box a tooltip belongs to: {key, slot} for an array slot, a variable, a field or a block */
+  const sl=el.closest("[data-slot]"); if(sl){ const [k,i]=sl.getAttribute("data-slot").split("|"); return {key:k,slot:+i}; }
+  const b=el.closest("[data-box]"); if(!b) return null;
+  const k=b.getAttribute("data-box").split(" ")[0]; return /^[vbh]:/.test(k)?{key:k,slot:null}:null;
+}
+/* the pinned panel: click a box to keep its printf lines, with Copy buttons; click elsewhere or Esc to let go */
+let PIN=null;
+const pinEl=document.createElement("div"); pinEl.className="pinp"; pinEl.hidden=true; document.body.appendChild(pinEl);
+function showPin(){
+  if(!PIN||!TRACE){ pinEl.hidden=true; return; }
+  let P=null; try{ P=printfFor(TRACE.steps[at],PIN.key,PIN.slot); }catch(err){ console.error(err); }
+  const b=boxIn(TRACE.steps[at],PIN.key);
+  pinEl.innerHTML=`<button class="pfx" title="unpin (Esc)" aria-label="unpin">×</button>`+(b?printfHTML(P,true):`<div class="pf"><div class="pfn">this box isn't there at this step</div></div>`);
+  pinEl.hidden=false; placeTip(pinEl,PIN.x,PIN.y);
+}
+function unpin(){ PIN=null; pinEl.hidden=true; }
+pinEl.addEventListener("click",e=>{ e.stopPropagation();
+  if(e.target.closest(".pfx")){ unpin(); return; }
+  const c=e.target.closest("[data-copy]"); if(!c) return;
+  const txt=c.getAttribute("data-copy"), done=()=>{ c.textContent="Copied"; setTimeout(()=>{ c.textContent="Copy"; },1200); };
+  const old=()=>{ const ta=document.createElement("textarea"); ta.value=txt; document.body.appendChild(ta); ta.select(); try{ document.execCommand("copy"); done(); }catch(_){} ta.remove(); };
+  if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done,old); else old(); });
+document.addEventListener("click",e=>{ if(PIN&&!e._pinned&&e.target.isConnected&&!e.target.closest("#pic")&&!e.target.closest(".pinp")&&!e.target.closest(".bar")) unpin(); });
 function tipAt(e,text){ tip.innerHTML=esc(text).replace(/\n/g,"<br>"); tip.style.display="block"; tip.style.left=Math.min(e.clientX+14,innerWidth-300)+"px"; tip.style.top=(e.clientY+14)+"px"; }
 function follow(el,ex,fr,e){ if(HOVEX!==el){ HOVEX=el; const res=evalExpr(TRACE.steps[at],fr,ex); showHops(res); el._t=hopText(ex,res); } tipAt(e,el._t); }
 function unfollow(){ if(HOVEX){ HOVEX=null; clearHops(); } tip.style.display="none"; }
@@ -2190,8 +2357,10 @@ $("pic").addEventListener("mousemove",e=>{
   const t=e.target.closest&&e.target.closest("[data-tip]");
   hoverBox(t);
   if(!t){ tip.style.display="none"; return; }
-  tip.innerHTML=esc(t.getAttribute("data-tip")).replace(/\n/g,"<br>");
-  tip.style.display="block"; tip.style.left=Math.min(e.clientX+14,innerWidth-300)+"px"; tip.style.top=(e.clientY+14)+"px";
+  if(tip._el!==t||tip._at!==at){ tip._el=t; tip._at=at; const b=boxOf(t);   /* the tooltip, then how to print this box */
+    let P=null; try{ P=b?printfFor(TRACE.steps[at],b.key,b.slot):null; }catch(err){ console.error(err); }
+    tip.innerHTML=esc(t.getAttribute("data-tip")).replace(/\n/g,"<br>")+printfHTML(P,false); }
+  tip.style.display="block"; placeTip(tip,e.clientX,e.clientY);
 });
 $("pic").addEventListener("mouseleave",()=>{ unfollow(); hoverBox(null); });
 let HOVB=null;
@@ -2205,6 +2374,8 @@ function hoverBox(el){                                            /* outline the
 }
 $("pic").addEventListener("click",e=>{
   if(e.target.closest(".lx")){ LADDER=null; draw(); return; }
+  const pb=e.target.closest("[data-tip]"), bk=pb&&boxOf(pb);    /* a box: pin how to print it */
+  if(bk){ PIN={...bk,x:e.clientX,y:e.clientY}; showPin(); e._pinned=true; } else unpin();   /* the click may redraw the picture: mark it, not its target */
   const wb=e.target.closest("[data-watch]"); if(wb){ const [fn,ex]=wb.dataset.watch.split("|"); addWatch(fn,ex); return; }
   const bb=e.target.closest("[data-bug]"); if(bb){ bugJump(+bb.dataset.bug); return; }
   const gg=e.target.closest(".leak [data-go]"); if(gg){ at=+gg.dataset.go; draw(); return; }
