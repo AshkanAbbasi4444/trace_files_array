@@ -331,6 +331,7 @@ button.icon{width:30px;padding:4px 0;font-weight:700;border-radius:50%}
   <div class="hrow" style="grid-template-columns:1fr;gap:3px;padding:5px 0"><svg width="190" height="58" aria-hidden="true" font-family="'IBM Plex Mono',ui-monospace,Menlo,monospace" font-size="11.5"><rect x="1" y="1" width="150" height="56" rx="8" fill="#fff" stroke="#A9B6C6"/><text x="9" y="15" fill="#5B6B82">val</text><text x="142" y="15" text-anchor="end" font-weight="800" fill="#14213D">7</text><rect x="6" y="20" width="140" height="33" rx="5" fill="#F6F8FB" stroke="#D5DDE6"/><text x="12" y="33" font-weight="700" fill="#5B6B82">pos</text><text x="20" y="48" fill="#5B6B82">x</text><text x="138" y="48" text-anchor="end" font-weight="800" fill="#5B6B82">??</text></svg><span>A struct inside a struct: a box of its own inside the card (or the variable's box), with its own fields, highlights and ?? until set. Named like <b>item-&gt;pos.x</b>, <b>(*item).pos.x</b> and <b>&amp;item-&gt;pos</b>. A struct variable on the stack shows its fields one per line</span></div>
   <div class="hrow" style="grid-template-columns:1fr;gap:3px;padding:5px 0"><svg width="190" height="60" aria-hidden="true"><rect x="2" y="20" width="60" height="30" rx="6" fill="#fff" stroke="#A9B6C6"/><rect x="100" y="20" width="60" height="30" rx="6" fill="#fff" stroke="#A9B6C6"/><path d="M50,50 C50,60 112,60 112,53" stroke="#5B6B82" stroke-width="1.5" fill="none"/><path d="M108,49 L112,55 L116,49z" fill="#5B6B82"/><path d="M140,20 C140,4 48,4 48,15" stroke="#B91C1C" stroke-width="1.8" fill="none"/><path d="M44,13 L48,19 L52,13z" fill="#B91C1C"/></svg><span>A doubly linked list (<b>next</b> and <b>prev</b>): cards in next order, <b>next</b> arrows below, <b>prev</b> arrows above; the list line reads <b>1 ⇄ 2 ⇄ 3 → NULL</b>. A <b>red</b> arrow and a ⚠ note: a node whose prev (or next) doesn't point back, like <i>0x200's prev doesn't point back to 0x100</i></span></div>
   <div class="hrow" style="grid-template-columns:1fr;gap:3px;padding:5px 0"><span class="sw txt" style="font-size:11.5px;width:auto;white-space:nowrap">head: 1 → 2 → 3 → (back to 1)</span><span>A circular list: following next comes back to the first node. Its cards are in next order and the last arrow curves back under them to the first card</span></div>
+  <div class="hrow" style="grid-template-columns:1fr;gap:3px;padding:5px 0"><span class="sw txt" style="font-size:11.5px;width:auto;white-space:nowrap">items <span style="border:1px solid #A9B6C6;border-radius:999px;padding:0 6px;background:#F1F5F9">head</span>  10 ⇄ 30 → (back to items)</span><span>A kernel-style list (<b>struct list_head</b> inside each item): arrows land on the item's <b>list</b> field, and hovering one shows <i>container_of(p, struct item, list)</i>, the item it's in. A list_head on the stack or a global is the list's <b>head</b>: the circle goes through it. <b>Globals</b>, your file's global and static variables, sit in their own box above the frames</span></div>
   <div class="hrow"><span class="sw txt" style="font-weight:400;color:#5B6B82">at 0x…</span><span>Under every box: the address where it lives (the simple one, or the real one: see View)</span></div>
   <div class="hrow" style="grid-template-columns:1fr;gap:3px;padding:5px 0"><span class="sw txt" style="font-weight:400;width:auto;white-space:nowrap">printf("*ptr = %d\n", *ptr);  → 42</span><span>Hover a box, a field or an array slot: the printf lines that print its value and its address from the running function, and what they print now. Click it to pin them, with a Copy button per line (Esc lets go)</span></div>
   <div class="hrow"><span class="sw txt" style="font-size:11.5px;color:#5B6B82;border:1px solid #A9B6C6;border-radius:999px;background:#F1F5F9;padding:0 6px">read-only</span><span>A char * to a string literal: the text it points to lives in read-only memory</span></div>
@@ -382,7 +383,9 @@ const MONO=`font-family="'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace"`
 const FPAL=[["#334155","#F4F6F9"],["#0F766E","#EFF8F6"],["#6D28D9","#F5F2FD"],["#4D7C0F","#F4F8EC"],["#A21CAF","#FBF1FC"],["#57534E","#F6F5F4"]];   /* none of them blue, amber or red: those already mean something */
 let FCOL={};
 function frameColors(t){ FCOL={}; let k=0;
-  t.steps.forEach(s=>s.frames.forEach(f=>{ if(!(f.func in FCOL)) FCOL[f.func]=f.func==="main"?FPAL[0]:FPAL[1+(k++%(FPAL.length-1))]; })); }
+  t.steps.forEach(s=>s.frames.forEach(f=>{ if(!(f.func in FCOL)) FCOL[f.func]=f.func==="main"||f.globals?FPAL[0]:FPAL[1+(k++%(FPAL.length-1))]; })); }
+const GFN="(globals)";                                            /* the name of the globals' "frame" */
+const ownerOf=(f,inner)=>f===inner||f.globals?"":f.func+"'s ";   /* main's x, or just x: a global is the same from everywhere */
 const fcol=fn=>FCOL[fn]||FPAL[0];
 const esc=s=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 let TRACE=null, SRC=null, at=0, timer=null, simple=true, view="cards", MAP={heap:{},size:{},lo:0,hi:0}, PZ="fit", CZ=100;
@@ -391,20 +394,22 @@ try{ PZ=localStorage.getItem("mv.pz")||"fit"; CZ=+localStorage.getItem("mv.cz")|
 
 /* ---------- pretty addresses: heap 0x100, 0x200 …, stack 0x7ffd…, both keeping real offsets ---------- */
 function buildMap(t){
-  const order=[], size={}; let lo=Infinity, hi=-Infinity;
+  const order=[], size={}; let lo=Infinity, hi=-Infinity, glo=Infinity, ghi=-Infinity;
   t.steps.forEach(s=>{
     s.heap.forEach(n=>{ if(!(n.addr in size)) order.push(n.addr); size[n.addr]=(n.size||16)+(n.slack?n.slack.length/2:0); });   /* a heap array: and the bytes past its end */
-    s.frames.forEach(f=>f.vars.forEach(v=>{ if(v.addr){ lo=Math.min(lo,v.addr); hi=Math.max(hi,v.addr+(v.size||8)); } }));
+    s.frames.forEach(f=>{ if(!f.globals) f.vars.forEach(v=>{ if(v.addr){ lo=Math.min(lo,v.addr); hi=Math.max(hi,v.addr+(v.size||8)); } });   /* the stack */
+      else f.vars.forEach(v=>{ if(v.addr){ glo=Math.min(glo,v.addr); ghi=Math.max(ghi,v.addr+(v.size||8)); } }); });   /* your globals */
   });
   const H={}; let next=0x100;
   order.forEach(a=>{ H[a]=next; next+=Math.ceil((size[a]+16)/0x100)*0x100; });
-  MAP={heap:H, size, lo:lo===Infinity?0:lo-lo%16, hi:hi===-Infinity?0:hi};
+  MAP={heap:H, size, lo:lo===Infinity?0:lo-lo%16, hi:hi===-Infinity?0:hi, glo:glo===Infinity?0:glo-glo%16, ghi:ghi===-Infinity?0:ghi};
 }
 function simpleOf(a){                                /* real address -> simple one, or null */
   if(MAP.heap[a]!==undefined) return MAP.heap[a];
   for(const k in MAP.heap){ const b=+k; if(a>b&&a<b+MAP.size[k]) return MAP.heap[k]+(a-b); }   /* inside a block */
   for(const k in MAP.heap){ const b=+k; if(a>=b-16&&a<b) return MAP.heap[k]-(b-a); }          /* its malloc header */
   if(MAP.lo&&a>=MAP.lo&&a<MAP.hi+64) return 0x7ffd0000+(a-MAP.lo);                             /* our stack frames */
+  if(MAP.glo&&a>=MAP.glo&&a<MAP.ghi) return 0x4000+(a-MAP.glo);                                  /* our globals */
   return null;
 }
 function show(a){
@@ -456,6 +461,7 @@ function reachable(s){
   const live=new Set(), byAddr={}, q=[];
   s.heap.forEach(n=>byAddr[n.addr]=n);
   const arrIn=p=>{ const b=s.heap.find(n=>n.kind==="array"&&p>=n.addr&&p<=n.addr+n.size); return b?b.addr:null; };   /* a pointer anywhere into a heap array keeps it */
+  const grpIn=p=>{ const b=s.heap.find(n=>n.kind!=="array"&&p>n.addr&&p<n.addr+(n.size||16)), f=b&&FL(b).find(f=>f.fields&&b.addr+f.offset===p); return f?b.addr:null; };   /* &item->list keeps the item */
   s.frames.forEach(f=>f.vars.forEach(v=>{ if(v.struct&&v.value&&v.init!==false) q.push(v.value);   /* leftovers are not references */
     else if(v.kind==="ptr"&&v.value&&v.init!==false&&arrIn(v.value)) q.push(arrIn(v.value));
     else if(v.kind==="other"&&v.init!==false) elemPtrs(v).forEach(e=>{ if(e.p&&byAddr[e.p]) q.push(e.p); });   /* int *ps[3]: each one it points to is held */
@@ -463,7 +469,7 @@ function reachable(s){
   if(s.ret&&/\*\s*$/.test(s.ret.type||"")&&s.ret.value) q.push(s.ret.value);                     /* a pointer just returned is still held (in rax) */
   while(q.length){
     let p=q.shift();
-    if(p&&!byAddr[p]) p=arrIn(p)||p;
+    if(p&&!byAddr[p]) p=arrIn(p)||grpIn(p)||p;
     if(!p||!byAddr[p]||live.has(p)) continue;
     live.add(p);
     if(byAddr[p].freed) continue;
@@ -495,7 +501,7 @@ function markInit(t){                                           /* v.init: writt
     const cur={}, RA=i>0?ranAt(i):null, code=RA&&!RA.call?codeAt(RA.line):"", pf=RA&&RA.fr?RA.fr.func:null;   /* a call's line isn't done yet */
     s.frames.forEach(f=>f.vars.forEach(v=>{
       const id=v.addr+"|"+f.func+"|"+v.name, old=prev[id];
-      v.init=!on||!!v.arg||(old!==undefined&&(old.init||old.bytes!==v.bytes||(pf===f.func&&writes(code,v.name))));
+      v.init=!on||!!v.arg||!!v.global||(old!==undefined&&(old.init||old.bytes!==v.bytes||(pf===f.func&&writes(code,v.name))));
       cur[id]={init:v.init,bytes:v.bytes};
     }));
     prev=cur;
@@ -560,6 +566,8 @@ function reach(s,fr){                                            /* R["v:addr" |
   fr.vars.forEach(v=>{ if(v.kind==="other"&&v.init!==false) elemPtrs(v).forEach(e=>{ if(e.p) q.push({x:`${v.name}[${e.j}]`,p:e.p,t:e.t,d:0}); }); });   /* int *ps[3]: ps[1] leads on */
   const sfs=(u,pre,acc,d)=>FL(u).forEach(f=>put("h:"+u.addr+":"+f.name,pre+acc+f.name,"&"+pre+acc+f.name,f.type,u.init===false||unsetF(u,f)?null:follow(pre+acc+f.name,f,d),d));   /* a struct variable's fields: local.pos.x */
   fr.vars.forEach(v=>sfs(v,v.name,".",0));
+  const G=s.frames.find(f=>f.globals);                           /* globals: reachable by name from every function */
+  if(G&&G!==fr){ G.vars.forEach(v=>{ if(!fr.vars.some(u=>u.name===v.name)) put("v:"+v.addr,v.name,"&"+v.name,v.type,follow(v.name,v,0),0); }); G.vars.forEach(v=>{ if(!fr.vars.some(u=>u.name===v.name)) sfs(v,v.name,".",0); }); }
   const subs=(b,f,x,d)=>FL(b).forEach(g=>{ if(g.name.startsWith(f.name+".")){ const e=par(x)+"->"+g.name.slice(f.name.length+1); put("h:"+b.addr+":"+g.name,e,"&"+e,g.type,follow(e,g,d),d); } });   /* p = &it->list: p->next is it->list.next */
   while(q.length){
     const {x,p,t,d:d0}=q.shift(), sv=stack[p], d=d0+1;
@@ -574,7 +582,7 @@ function reach(s,fr){                                            /* R["v:addr" |
       FL(b).forEach(f=>put("h:"+b.addr+":"+f.name,par(x)+"->"+f.name,"&"+par(x)+"->"+f.name,f.type,follow(par(x)+"->"+f.name,f,d),d));
     } else {                                                                              /* a field inside a node, like &n->next */
       const f=fieldAt(b,p,t);
-      if(f){ put("h:"+b.addr+":"+f.name,"*"+x,x,f.type,follow("*"+x,f,d),d); if(f.fields) subs(b,f,x,d); }
+      if(f){ put("h:"+b.addr+":"+f.name,"*"+x,x,f.type,follow("*"+x,f,d),d); if(f.fields){ subs(b,f,x,d); if(!(("b:"+b.addr) in D)) D["b:"+b.addr]=d; } }   /* inside a struct field: its card is reachable too */
     }
   }
   return R;
@@ -590,6 +598,8 @@ function allNames(s,fr){                                         /* key -> every
   fr.vars.forEach(v=>{ if(v.kind==="other"&&v.init!==false) elemPtrs(v).forEach(e=>{ if(e.p) q.push({x:`${v.name}[${e.j}]`,p:e.p,t:e.t,d:1}); }); });
   const sfs=(u,pre,acc,d)=>FL(u).forEach(f=>put("h:"+u.addr+":"+f.name,pre+acc+f.name,"&"+pre+acc+f.name,u.init===false||unsetF(u,f)?null:follow(pre+acc+f.name,f,d)));   /* local.pos.x, pp->pos.x */
   fr.vars.forEach(v=>sfs(v,v.name,".",1));
+  const G=s.frames.find(f=>f.globals);
+  if(G&&G!==fr) G.vars.forEach(v=>{ if(!fr.vars.some(u=>u.name===v.name)){ put("v:"+v.addr,v.name,"&"+v.name,follow(v.name,v,1)); sfs(v,v.name,".",1); } });
   while(q.length){
     const {x,p,t,d}=q.shift(), sv=stack[p];
     if(sv&&(!t||t===sv.type)){ put("v:"+p,"*"+x,x,follow("*"+x,sv,d+1)); sfs(sv,par(x),"->",d+1); continue; }
@@ -636,7 +646,7 @@ function cString(s,a){                                           /* the string a
 const pfCast=e=>/[-+ ]/.test(e.replace(/->/g,"").replace(/\[[^\]]*\]/g,""))?`(void *)(${e})`:`(void *)${e}`;     /* (void *)ptr, (void *)&p[-1], (void *)(nums + 2) */
 function printfFor(s,key,slot){                                  /* {fn, note, val:[{e, t, out, line?}], adr:[…]}: the lines that print one box */
   if(!s.frames.length) return null;
-  const inner=s.frames[0], main=s.frames[s.frames.length-1];
+  const inner=s.frames[0], main=s.frames.filter(f=>!f.globals).pop()||inner;
   const build=fr=>{
     const A=allNames(s,fr), val=[], adr=[];
     const add=(L,e,t,out,line)=>{ if(!L.some(x=>x.e===e&&x.t===t)) L.push({e,t,out,line}); };
@@ -872,7 +882,7 @@ function evalExpr(s, frame, text){                              /* -> {hops:[{bo
   function primary(){
     const t=toks[i];
     if(t==="("){ i++; const pl=unary(); if(toks[i++]!==")") fail("a ) is missing"); return pl; }
-    if(t&&/^[A-Za-z_]\w*$/.test(t)){ i++; const v=frame.vars.find(v=>v.name===t);
+    if(t&&/^[A-Za-z_]\w*$/.test(t)){ i++; const v=frame.vars.find(v=>v.name===t)||((s.frames.find(f=>f.globals)||{vars:[]}).vars.find(v=>v.name===t));   /* a local, else a global */
       if(!v) fail(`${t} isn't a variable in ${frame.func}`);
       hops.push({box:"v:"+v.addr,from:null}); return place(t,"v:"+v.addr,v,{addr:v.addr,grp:v.fields?{o:v,pre:""}:null}); }
     fail("that isn't something the viewer can follow");
@@ -1382,6 +1392,31 @@ function dllCheck(s){                                            /* doubly linke
     bad.set("h:"+a.addr+":"+la.prev.name,t); notes.push(t); });
   return {bad,notes};
 }
+const isListHead=v=>{ const L=v&&v.fields||[];                  /* struct list_head on the stack or a global: two pointers to its own type */
+  return v.kind==="other"&&L.length===2&&L.every(f=>f.kind==="ptr"&&bare(f.target)===bare(v.type)); };
+function kernLines(s){                                           /* LIST_HEAD(items): items: 10 ⇄ 30 → (back to items) */
+  const out=[], inner=s.frames[0];
+  s.frames.forEach(f=>f.vars.forEach(v=>{ if(!isListHead(v)||v.init===false||v.funset) return;
+    const nx=v.fields.find(x=>/^(?:next|nxt|fwd|forward)$/.test(x.name))||v.fields[0], pv=v.fields.find(x=>x!==nx), who=ownerOf(f,inner)+v.name;
+    if(nx.value===v.addr){ out.push({names:who,text:"(empty: next points back to itself)",count:0,bad:false,kern:true,order:[]}); return; }
+    let p=nx.value, end="NULL", bad=false, prevP=v.addr; const parts=[], seps=[], order=[], seen=new Set();
+    while(p&&p!==v.addr){
+      if(seen.has(p)){ end=`cycle! it never gets back to ${v.name}`; bad=true; break; }
+      seen.add(p);
+      const b=s.heap.find(n=>n.kind!=="array"&&p>=n.addr&&p<n.addr+(n.size||16));
+      if(!b){ end=`${show(p)} (not a block)`; bad=true; break; }
+      if(b.freed){ end=`${show(p)} (freed!)`; bad=true; break; }
+      const g=fieldAt(b,p,nx.target), gn=g&&FL(b).find(x=>x.name===g.name+"."+nx.name), gp=g&&FL(b).find(x=>x.name===g.name+"."+pv.name);
+      if(!gn){ end=`${show(p)} (not a ${short(v.type)})`; bad=true; break; }
+      if(parts.length) seps.push(gp&&gp.value===prevP?" ⇄ ":" → ");   /* the one before points here, and this one's prev points back */
+      parts.push((FL(b).find(x=>x.kind==="int"&&!x.depth)||{value:show(b.addr)}).value+""); order.push(b.addr);
+      if(parts.length>40){ end="…"; break; }
+      prevP=p; p=gn.value; }
+    if(p===v.addr&&!bad) end=`(back to ${v.name})`;
+    out.push({names:who,text:parts.map((x,k)=>x+(k<seps.length?seps[k]:"")).join("")+" → "+end,count:parts.length,bad,kern:true,order});
+  }));
+  return out;
+}
 function listLines(s){
   const byA={}, pointedAt=new Set(), heads={}, inner=s.frames[0], R=reachable(s), DC=dllCheck(s);
   s.heap.forEach(n=>{ byA[n.addr]=n; const lk=linksOf(n); if(!n.freed&&R.has(n.addr)) (n.fields||[]).forEach(f=>{ if(f.kind==="ptr"&&f.value&&!(lk&&f===lk.prev)) pointedAt.add(f.value); }); });   /* a prev link doesn't make a node "not the head" */
@@ -1393,18 +1428,18 @@ function listLines(s){
   const circ=new Map();                                          /* a circular list: one line, from the best-named variable that points into it */
   s.frames.forEach(f=>f.vars.forEach(v=>{                        /* a list starts where a variable points and no node does */
     if(!v.struct||v.init===false||!v.value) return;
-    const n=byA[v.value], who=(f===inner?"":f.func+"'s ")+v.name;
+    const n=byA[v.value], who=ownerOf(f,inner)+v.name;
     if(n&&!n.freed&&pointedAt.has(v.value)&&nextOf(n)){ const rg=ring(v.value); if(!rg) return;
       const key=Math.min(...rg), sc=/^(?:head|first|list|start|root|ring|circle)$/.test(v.name)?0:1, c=circ.get(key);
       if(!c||sc<c.sc) circ.set(key,{start:v.value,names:[who],sc}); else if(c.start===v.value&&!c.names.includes(who)) c.names.push(who);
       return; }
     if(!n||(!n.freed&&(pointedAt.has(v.value)||!nextOf(n)))) return;
-    (heads[v.value]=heads[v.value]||[]).push((f===inner?"":f.func+"'s ")+v.name);
+    (heads[v.value]=heads[v.value]||[]).push(ownerOf(f,inner)+v.name);
   }));
   const circS=new Set(); circ.forEach(c=>{ circS.add(c.start); heads[c.start]=c.names; });
   const said=new Set();                                          /* each broken pair is told once */
   return Object.entries(heads).map(([a,names])=>{
-    let p=+a, parts=[], seps=[], end="NULL", bad=false, dbl=false, last=0, tail=0; const seen=new Set(), notes=[];
+    let p=+a, parts=[], seps=[], end="NULL", bad=false, dbl=false, last=0, tail=0; const seen=new Set(), notes=[], order=[];
     while(p){
       const n=byA[p];
       if(!n){ end=`${show(p)} (not a block)`; bad=true; break; }
@@ -1412,15 +1447,15 @@ function listLines(s){
       if(seen.has(p)){ if(p===+a&&circS.has(p)){ end=`(back to ${valOf(n)})`; last=seen.size; break; } end=`cycle! back to ${valOf(n)}`; bad=true; break; }   /* a circular list: fine */
       seen.add(p); parts.push(valOf(n));
       if(parts.length>40){ end="…"; break; }
-      const nx=nextOf(n), pv=prevOf(n); tail=n.addr; p=nx?nx.value:0; if(pv) dbl=true;
+      const nx=nextOf(n), pv=prevOf(n); tail=n.addr; order.push(n.addr); p=nx?nx.value:0; if(pv) dbl=true;
       const m=byA[p], pm=m&&!m.freed&&prevOf(m); seps.push(pv&&pm&&pm.value===n.addr?" ⇄ ":" → ");   /* 1 ⇄ 2: they point at each other */
       [nx&&"h:"+n.addr+":"+nx.name,pv&&"h:"+n.addr+":"+pv.name,pm&&"h:"+p+":"+pm.name].forEach(k=>{ const t=k&&DC.bad.get(k); if(t&&!said.has(t)){ said.add(t); notes.push(t); } });
     }
     const cl=last?{circ:true,back:"h:"+tail+":"+nextOf(byA[tail]).name}:{};   /* back: the arrow that closes the circle */
-    if(!dbl) return {head:+a, names:names.join(", "), text:parts.concat([end]).join(" → "), count:parts.length, bad, ...cl};
+    if(!dbl) return {head:+a, names:names.join(", "), text:parts.concat([end]).join(" → "), count:parts.length, bad, order, ...cl};
     if(!last) seps[seps.length-1]=" → ";                           /* the last one: → NULL */
-    return {head:+a, names:names.join(", "), text:parts.map((x,k)=>x+seps[k]).join("")+end, count:parts.length, bad:bad||notes.length>0, notes, dbl, ...cl};
-  });
+    return {head:+a, names:names.join(", "), text:parts.map((x,k)=>x+seps[k]).join("")+end, count:parts.length, bad:bad||notes.length>0, notes, dbl, order, ...cl};
+  }).concat(kernLines(s));
 }
 function heapOrder(s,blocks){                                     /* lay the cards out along the lists, so arrows stop crossing */
   const byA={}, out=[], seen=new Set(); blocks.forEach(n=>byA[n.addr]=n);
@@ -1561,7 +1596,7 @@ function addWatch(fn,ex){
 function renderWatch(){
   const box=$("watch"); if(!TRACE){ box.hidden=true; return; }
   box.hidden=false;
-  const fns=[...new Set(TRACE.steps.flatMap(s=>s.frames.map(f=>f.func)))];
+  const fns=[...new Set(TRACE.steps.flatMap(s=>s.frames.filter(f=>!f.globals).map(f=>f.func)))];
   const sel=$("wfn");
   if(sel.dataset.fns!==fns.join(",")){ sel.dataset.fns=fns.join(",");                        /* this trace's functions */
     sel.innerHTML=`<option value="">the running function</option>`+fns.map(f=>`<option value="${esc(f)}">${esc(f)}</option>`).join(""); sel.value=WFN; }
@@ -1650,13 +1685,13 @@ function markBugs(t){
 /* ---------- out of bounds: about to write past an array's end, or bytes past its end just changed ---------- */
 function arraysOf(st){                                             /* every array on a step: stack variables and live heap arrays */
   const out=[];
-  st.frames.forEach((f,fi)=>f.vars.forEach(v=>{ const D=v.addr&&arrDims(v); if(D) out.push({v,D,f,name:()=>(fi?f.func+"'s ":"")+v.name}); }));
+  st.frames.forEach((f,fi)=>f.vars.forEach(v=>{ const D=v.addr&&arrDims(v); if(D) out.push({v,D,f,name:()=>(fi&&!f.globals?f.func+"'s ":"")+v.name}); }));
   st.heap.forEach(n=>{ const D=n.kind==="array"&&!n.freed&&arrDims(n); if(D) out.push({v:n,D,f:null,name:()=>heapName(st,n.addr)}); });
   return out;
 }
 function heapName(st,addr){                                        /* how the running function names a heap block: sq, bag->data, or its address */
   const r=st.frames.length?reach(st)["b:"+addr]:null; if(r) return r.a;
-  for(const f of st.frames) for(const v of f.vars) if(v.kind==="ptr"&&v.value===addr) return (f===st.frames[0]?"":f.func+"'s ")+v.name;
+  for(const f of st.frames) for(const v of f.vars) if(v.kind==="ptr"&&v.value===addr) return (f===st.frames[0]||f.globals?"":f.func+"'s ")+v.name;
   return `the block at ${show(addr)}`;
 }
 function oobBugs(t,s,i,RA){
@@ -1723,8 +1758,8 @@ function boxIn(st,key){                                            /* find a box
 }
 function boxName(st,key,runFn){
   const b=boxIn(st,key); if(!b) return "that box";
-  if(b.v) return b.fr.func===runFn?b.v.name:`${b.fr.func}'s ${b.v.name}`;
-  if(b.sv) return (b.fr.func===runFn?"":b.fr.func+"'s ")+b.n.name+(b.fd?"."+b.fd.name:"");
+  if(b.v) return b.fr.func===runFn||b.fr.globals?b.v.name:`${b.fr.func}'s ${b.v.name}`;
+  if(b.sv) return (b.fr.func===runFn||b.fr.globals?"":b.fr.func+"'s ")+b.n.name+(b.fd?"."+b.fd.name:"");
   return b.fd?`${show(b.n.addr)}'s ${b.fd.name}`:b.n.kind==="array"?`the ${b.n.type} array at ${show(b.n.addr)}`:`the node at ${show(b.n.addr)}`;
 }
 function boxVal(st,key){
@@ -1919,13 +1954,13 @@ function renderCards(s){
     const empty=RG&&RG.empty?`empty range: ${RG.loName} is ${RG.loV}, ${RG.hiName} is ${RG.hiV}`:"";
     return {h,changed,rd,mch,marks:marks+(RG?`\n${RG.text}: `+(RG.empty?"nothing left between them":`[${RG.lo}…${RG.hi}] still in play`):"")+(WIN?`\nwindow ${WIN.text}`:""),notes,empty};
   };
-  const structW=v=>Math.ceil(Math.max(SLOTW,11+7.6*v.name.length+14+6.9*v.type.length+8,
+  const structW=v=>Math.ceil(Math.max(SLOTW,11+7.6*v.name.length+14+6.9*v.type.length+8+(isListHead(v)?48:0),
     ...FL(v).map(g=>12+(g.depth||0)*12+6.9*(g.leaf||g.name).length+16+(g.fields?6.9*short(g.type).length:7.2*(g.kind==="ptr"?(simple?10:14):g.kind==="int"?11:12))+12)));
   const structBox=(sl,f,bx,by)=>{                                 /* struct item2 local: its fields one per line, a struct inside it as a box */
     const v=sl.v, w=sl.w, key="v:"+v.addr, L=FL(v), unset=v.init===false, rc=RC[key], hd=RC._D?RC._D[key]:undefined, out=hd===undefined&&!!inner;
     const kf=g=>"h:"+v.addr+":"+g.name, Cs=L.some(g=>CH.has(kf(g))), I=!Cs&&TT.inv.has(key), F=TT.on&&!Cs&&!I&&!L.some(g=>TT.inv.has(kf(g)));
-    const who=(f===inner?"":f.func+"'s ")+v.name, lines={}, ptrs=[];
-    const role=`\n${v.arg?"parameter":"local"} of ${f.func}${v.decl?`, declared on line ${v.decl}`:""}`+(out?`\n${inner.func} can't reach this box`:"")+(v.addr?libTip(s,v.addr,v.size||8):"");
+    const who=ownerOf(f,inner)+v.name, lines={}, ptrs=[];
+    const role=`\n${f.globals?"a global":`${v.arg?"parameter":"local"} of ${f.func}`}${v.decl?`, declared on line ${v.decl}`:""}`+(out?`\n${inner.func} can't reach this box`:"")+(v.addr?libTip(s,v.addr,v.size||8):"");
     let h="", y=by+40;
     L.forEach(g=>{ const ix=(g.depth||0)*12, k=kf(g), Cg=CH.has(k), Ig=!Cg&&TT.inv.has(k), rg=RC[k], fa=v.addr+(g.offset||0); lines[g.name]=y+8;
       const tip=`${who}.${g.name} (${g.type})\nat ${real(fa)}${simple?" ("+show(fa)+")":""}, ${v.name}'s start + ${g.offset}`+reachTip(rg,inner?inner.func:"");
@@ -1943,14 +1978,16 @@ function renderCards(s){
       `<rect x="${bx}" y="${by}" width="${w}" height="${SLOTH}" rx="8" fill="${out?"#F1F3F5":"#fff"}" stroke="${I?INK:BORDER}" stroke-width="${I?2.2:1}"/>`+
       (hd!==undefined?`<rect x="${bx+2}" y="${by+7}" width="4" height="${SLOTH-14}" rx="2" fill="${hopc(hd)}"/>`:"")+
       `<text x="${bx+11}" y="${by+17}" font-size="12.5" font-weight="700" fill="${INK}" ${MONO}>${esc(v.name)}</text>`+
+      (isListHead(v)?`<g data-tip="${esc(`${v.name} is the list's head (a sentinel): not an item, just next and prev. The list goes round through it`+(!unset&&L[0].value===v.addr?"\nnext points back to itself: the list is empty":""))}"><rect x="${bx+11+7.6*v.name.length+8}" y="${by+6}" width="40" height="15" rx="7.5" fill="${PNL}" stroke="${BORDER}"/><text x="${bx+11+7.6*v.name.length+28}" y="${by+17}" font-size="11.5" font-weight="700" text-anchor="middle" fill="${MUT}">head</text></g>`:"")+
       `<text x="${bx+w-8}" y="${by+17}" font-size="10" text-anchor="end" fill="${MUT}">${esc(v.type)}</text>`+
       `<text x="${bx+11}" y="${by+33}" font-size="11.5" fill="${MUT}" ${MONO}>at ${show(v.addr)}</text>`+
+      (isListHead(v)&&!unset&&!v.funset&&L[0].value===v.addr?`<text x="${bx+11}" y="${by+SLOTH-6}" font-size="11.5" font-style="italic" fill="${MUT}">empty: points to itself</text>`:"")+
       (out?`<text x="${bx+11}" y="${by+SLOTH-6}" font-size="10" font-style="italic" fill="${MUT}">not reachable from here</text>`
          :rc&&rc.v!==v.name?`<text x="${bx+w-8}" y="${by+33}" font-size="11" font-weight="700" text-anchor="end" fill="${REACH}" ${MONO}${EX(rc.v)}>= ${esc(rc.v)}</text>`:"")+h+`</g>`;
   };
   const gridBox=(sl,f,bx,by)=>{                                   /* int grid[2][3], char board[3][3]: a row of slots per row, [i] and i→ on the left, [j] on top */
     const v=sl.v, A=sl.A, G=A.grid, g=sl.g, key="v:"+v.addr, unset=v.init===false, rc=RC[key], hd=RC._D?RC._D[key]:undefined, out=hd===undefined&&!!inner;
-    const whoA=(f===inner?"":f.func+"'s ")+v.name, code=RAc?codeAt(RAc.line):"", x0=bx+g.gx, M=arrMarks(s,f,v,A), cells=[];
+    const whoA=ownerOf(f,inner)+v.name, code=RAc?codeAt(RAc.line):"", x0=bx+g.gx, M=arrMarks(s,f,v,A), cells=[];
     let h="", busy=false, marks="", notes=M.notes.length?"\n"+M.notes.join("\n"):"", mch=M.cols.some(c=>c.names.some(m=>m.vars.some(u=>CH.has("v:"+u.addr))));
     const rDesc=m=>`${m.fn}'s ${m.nm} is ${m.val}: `+(m.slot===G.R?`one past the last row (${v.name}[${G.R}] isn't part of it)`:`row ${m.slot}, ${m.via}[${m.nm}]`);
     G.rows.forEach((r,i)=>{ const c0=by+37+i*AP.RH, RA=G.RS[i], rg=g.RG[i];
@@ -1963,7 +2000,7 @@ function renderCards(s){
       h+=`<text x="${x0-34}" y="${c0+16.5}" font-size="11.5" font-weight="700" text-anchor="end" fill="${mc}" data-tip="${esc(mk.names.map(rDesc).join("\n"))}" ${MONO}>${esc(clip(nm,6))}→</text>`; });
     const whole=!!(RAc&&RAc.fr&&RAc.fr.vars.some(u=>u.addr===v.addr&&u.name===v.name))&&new RegExp(`(?<![\\w.]|->)${v.name}\\b(?!\\s*\\[)`).test(code);
     const I=TT.inv.has(key)&&whole, F=TT.on&&!I&&!busy&&!mch;
-    const role=`\n${v.arg?"parameter":"local"} of ${f.func}${v.decl?`, declared on line ${v.decl}`:""}`+(out?`\n${inner.func} can't reach this box`:"")+(v.addr?libTip(s,v.addr,v.size||8):"");
+    const role=`\n${f.globals?"a global":`${v.arg?"parameter":"local"} of ${f.func}`}${v.decl?`, declared on line ${v.decl}`:""}`+(out?`\n${inner.func} can't reach this box`:"")+(v.addr?libTip(s,v.addr,v.size||8):"");
     pos[key]={x:bx+sl.w/2,y:by+SLOTH,C:false,I,F,who:whoA,cell:k=>{ const c=cells[Math.floor(k/G.C)]; return c?{x:slotX(c.ab,k%G.C),y:c.c0+24}:null; }};
     const rm=M.cols.length?"\nindexing its rows now:\n"+M.cols.flatMap(c=>c.names).map(rDesc).join("\n"):"";
     return `<g data-box="${key}" data-lad="${v.addr}|${esc(f.func)}|${esc(v.name)}" data-tip="${esc(`${v.name} (${v.type}): ${G.R} rows of ${G.C} ${G.rows[0]?elemOf(G.rows[0].type):""}, one after another in memory`+role+"\nreal address "+real(v.addr)+(unset?"\nnot set yet: leftover bytes":v.eset?"\n?? = not set yet: leftover bytes":"")+rm+marks+notes+reachTip(rc,inner?inner.func:"").replace(/\nchange it: .*/,""))}"${F?DIM:""}>`+
@@ -1979,7 +2016,7 @@ function renderCards(s){
     if(sl.A.grid) return gridBox(sl,f,bx,by);
     const v=sl.v, A=sl.A, g=sl.g, n=A.n, key="v:"+v.addr, unset=v.init===false;
     const rc=RC[key], hd=RC._D?RC._D[key]:undefined, out=hd===undefined&&!!inner;
-    const whoA=(f===inner?"":f.func+"'s ")+v.name, code=RAc?codeAt(RAc.line):"";
+    const whoA=ownerOf(f,inner)+v.name, code=RAc?codeAt(RAc.line):"";
     const ab={x0:bx+g.x0,cw:g.cw,n,shown:g.shown,moreL:bx+g.moreL,moreW:g.moreW,endL:bx+g.endL,endW:g.endW,ew:A.w};   /* the same, on the page */
     const H=A.chr||v.cstrs?16:0, CHh=A.sf?24+(A.sf.length-1)*16:24;   /* a string: its text on a line above the slots */
     const body=arrBody(v,A,g,f,whoA,ab,by+37+H,by+37+H+CHh+15);
@@ -1993,7 +2030,7 @@ function renderCards(s){
       head+=`<text x="${slotX(ab,j)}" y="${by+33}" font-size="11.5" font-weight="600" text-anchor="middle" fill="${INK}" data-tip="${esc(`${v.name}[${j}] points to the string ${q}\n`+(c.ro?"it lives in read-only memory: writing to it crashes the program (SIGSEGV)":"it lives in the program's global data"))}" ${MONO}>${esc(t)}</text>`; });
     const whole=!!(RAc&&RAc.fr&&RAc.fr.vars.some(u=>u.addr===v.addr&&u.name===v.name))&&new RegExp(`(?<![\\w.]|->)${v.name}\\b(?!\\s*\\[)`).test(code);   /* used as a whole, like f(nums) */
     const I=TT.inv.has(key)&&whole, F=TT.on&&!I&&!body.changed.size&&!body.rd.size&&!body.mch;
-    const role=`\n${v.arg?"parameter":"local"} of ${f.func}${v.decl?`, declared on line ${v.decl}`:""}`+(out?`\n${inner.func} can't reach this box`:"")+(v.addr?libTip(s,v.addr,v.size||8):"");
+    const role=`\n${f.globals?"a global":`${v.arg?"parameter":"local"} of ${f.func}`}${v.decl?`, declared on line ${v.decl}`:""}`+(out?`\n${inner.func} can't reach this box`:"")+(v.addr?libTip(s,v.addr,v.size||8):"");
     pos[key]={x:bx+sl.w/2,y:by+SLOTH,C:false,I,F,who:whoA,arr:ab,ch:body.changed,rd:body.rd};
     return `<g data-box="${key}" data-lad="${v.addr}|${esc(f.func)}|${esc(v.name)}" data-tip="${esc(`${v.name} (${v.type}): ${n} element${n===1?"":"s"} of ${A.w} byte${A.w===1?"":"s"}`+role+"\nreal address "+real(v.addr)+(unset?"\nnot set yet: leftover bytes":v.eset?"\n?? = not set yet: leftover bytes":"")+body.marks+body.notes+reachTip(rc,inner?inner.func:"").replace(/\nchange it: .*/,""))}"${F?DIM:""}>`+
       `<rect x="${bx}" y="${by}" width="${sl.w}" height="${SLOTH}" rx="8" fill="${out?"#F1F3F5":"#fff"}" stroke="${I?INK:BORDER}" stroke-width="${I?2.2:1}"/>`+
@@ -2026,12 +2063,12 @@ function renderCards(s){
     const w=28+slots.reduce((t,s)=>t+s.w+8,0)-8, SP=FRAMEINT&&f.rbp&&f.rsp?f:null, spMarks=[];
     if(x>16&&x+w>vis-16){ x=16; y+=FROW; }                        /* no room left in this row: start a new one */
     fpos[f.func]={x,w,y};
-    const [fc,ft]=fcol(f.func);
+    const [fc,ft]=fcol(f.func), GL=!!f.globals;
     o+=`<rect x="${x}" y="${y}" width="${w}" height="${SLOTH+34}" rx="10" fill="${ft}" stroke="${isNew(f)?AMB:LN}" stroke-width="${isNew(f)?1.6:1}"/>`+
        `<rect x="${x}" y="${y}" width="5" height="${SLOTH+34}" rx="2.5" fill="${fc}"/>`+                /* the function's colour */
-       `<text x="${x+16}" y="${y+18}" font-size="12.5" font-weight="600" fill="${fc}">${esc(f.func)}'s frame`+
-       (()=>{ const room=Math.floor((w-24-(f.func.length+8)*7)/6.4), sg=f.sig||"";           /* the function's signature, if it fits */
-         return sg&&room>12?`<tspan dx="10" font-size="10.5" font-weight="400" fill="${MUT}" ${MONO}>${esc(sg.length>room?sg.slice(0,room-1)+"…":sg)}</tspan>`:""; })()+`</text>`;
+       `<text x="${x+16}" y="${y+18}" font-size="12.5" font-weight="600" fill="${fc}">${GL?`Globals<tspan dx="10" font-size="11.5" font-weight="400" fill="${MUT}">your file's global and static variables</tspan>`:esc(f.func)+"'s frame"}`+
+       (GL?"":(()=>{ const room=Math.floor((w-24-(f.func.length+8)*7)/6.4), sg=f.sig||"";           /* the function's signature, if it fits */
+         return sg&&room>12?`<tspan dx="10" font-size="10.5" font-weight="400" fill="${MUT}" ${MONO}>${esc(sg.length>room?sg.slice(0,room-1)+"…":sg)}</tspan>`:""; })())+`</text>`;
     let sx=x+14;
     slots.forEach(sl=>{
       const bx=sx, by=y+24; sx+=sl.w+8;
@@ -2050,9 +2087,9 @@ function renderCards(s){
       if(sl.A){ o+=arrBox(sl,f,bx,by); return; }
       if(sl.st){ o+=structBox(sl,f,bx,by); return; }
       const v=sl.v, SLOTW2=sl.w, key="v:"+v.addr, C=CH.has(key), I=!C&&TT.inv.has(key), F=TT.on&&!C&&!I, rc=RC[key], ci=CI[key], hd=RC._D?RC._D[key]:undefined, out=hd===undefined&&!!inner;
-      const role=`\n${v.arg?"parameter":"local"} of ${f.func}${v.decl?`, declared on line ${v.decl}`:""}`+(ci?`\n${ci.text}`:"")+(out?`\n${inner.func} can't reach this box`:"")+(v.addr?libTip(s,v.addr,v.size||8):"");
+      const role=`\n${f.globals?"a global":`${v.arg?"parameter":"local"} of ${f.func}`}${v.decl?`, declared on line ${v.decl}`:""}`+(ci?`\n${ci.text}`:"")+(out?`\n${inner.func} can't reach this box`:"")+(v.addr?libTip(s,v.addr,v.size||8):"");
       const val=v.init===false?"??":v.kind==="int"?String(v.value):v.kind==="other"?(arrText(v.type,v.size,v.bytes,22)||"—"):(v.value===null?"—":show(v.value));   /* ?? only means: not set yet */
-      pos[key]={x:bx+SLOTW2/2,y:by+SLOTH,C,I,F,who:(f===inner?"":f.func+"'s ")+v.name};
+      pos[key]={x:bx+SLOTW2/2,y:by+SLOTH,C,I,F,who:ownerOf(f,inner)+v.name};
       const lit=v.cstr!=null&&v.init!==false&&!ci&&!out?(()=>{                /* a char * to a string literal: its text, and whether it's read-only */
         const tag=v.cstr_ro?78:0, room=Math.max(4,Math.floor((SLOTW2-22-tag)/6.9)-2), q=JSON.stringify(v.cstr).slice(1,-1), t=`"${q.length>room?q.slice(0,room-1)+"…":q}${v.cstr_cut&&q.length<=room?"…":""}"`;
         return `<g data-tip="${esc(`${v.name} points to the string "${v.cstr}"${v.cstr_cut?"… (more than 64 bytes)":""}\n`+(v.cstr_ro?"it lives in read-only memory: writing to it crashes the program (SIGSEGV)":"it lives in the program's global data"))}">`+
@@ -2084,6 +2121,7 @@ function renderCards(s){
           `<rect x="${x1-104}" y="${yb-2}" width="98" height="13" rx="6.5" fill="#fff" stroke="${FAINT}" stroke-dasharray="3 2"/><text x="${x1-55}" y="${yb+8}" font-size="10" font-weight="600" text-anchor="middle" fill="${MUT}">red zone: below rsp</text></g>`; }   /* at the right end, clear of pointer arrows */
     }
     x+=w+14; xmax=Math.max(xmax,x);
+    if(GL){ x=16; y+=FROW; }                                     /* the stack frames start on the next row */
   });
   const HY=y-34+276+(SLOTH-86)+18*LLN.length;                                  /* the heap starts under the last row of frames */
   /* heap cards, in address order */
@@ -2092,10 +2130,10 @@ function renderCards(s){
   const blocks=s.heap.filter(n=>!hset.has(n.addr)), ordered=LORDER?heapOrder(s,blocks):blocks;
   const items=[...ordered.map(n=>({n,a:n.addr})),...(s.chunks||[]).filter(c=>!own.has(c.addr)).map(c=>({c,a:c.addr}))];
   if(!LORDER) items.sort((p,q)=>p.a-q.a);
-  const DLL=LL.filter(l=>l.dbl||l.circ), BACK=new Set(LL.filter(l=>l.circ).map(l=>l.back));   /* doubly linked or circular: in next order */
+  const DLL=LL.filter(l=>l.dbl||l.circ||l.kern&&l.count), BACK=new Set(LL.filter(l=>l.circ).map(l=>l.back));   /* doubly linked or circular: in next order */
   if(!LORDER&&DLL.length){                                        /* a doubly linked list: its cards in next order, where its first card would be */
     const inL=new Map(), out=[], done=new Set(), byI=new Map(items.filter(it=>it.n).map(it=>[it.n.addr,it]));
-    [...DLL].sort((a,b)=>b.count-a.count).forEach((l,k)=>{ let p=l.head; while(p&&byI.has(p)&&!inL.has(p)){ inL.set(p,k); const lk=linksOf(byI.get(p).n); p=lk&&lk.next.value; } });   /* the longest list first: a node half-way through an insert stays in it */
+    [...DLL].sort((a,b)=>b.count-a.count).forEach((l,k)=>{ l.order.forEach(p=>{ if(byI.has(p)&&!inL.has(p)) inL.set(p,k); }); });   /* the longest list first: a node half-way through an insert stays in it */
     items.forEach(it=>{ const k=it.n?inL.get(it.n.addr):undefined; if(k===undefined){ out.push(it); return; } if(done.has(k)) return; done.add(k);
       [...inL.entries()].filter(e=>e[1]===k).forEach(e=>out.push(byI.get(e[0]))); });
     items.splice(0,items.length,...out); }
@@ -2150,7 +2188,7 @@ function renderCards(s){
   const sizes=[...new Set(s.heap.map(n=>n.size).filter(Boolean))];
   LLN.forEach((l,k)=>{ o+=l.note?`<text x="28" y="${HY-30-18*(LLN.length-k)}" font-size="12" font-weight="700" fill="${BAD}" paint-order="stroke" stroke="#fff" stroke-width="4">⚠ ${esc(l.note)}</text>`   /* a broken prev/next pair */
     :`<text x="16" y="${HY-30-18*(LLN.length-k)}" font-size="12" fill="${l.bad?BAD:INK}" ${MONO} paint-order="stroke" stroke="#fff" stroke-width="4"><tspan font-weight="700">${esc(l.names)}:</tspan> ${esc(l.text)} ${l.count?`<tspan fill="${MUT}">(${l.count} node${l.count===1?"":"s"})</tspan>`:""}</text>`; });   /* list lines */
-  const heapNote=`${sizes.length===1?sizes[0]+"-byte blocks":"blocks"}, ${LORDER?"in list order":"in address order (list order is set by next)"}`+(TRS.length?" · trees: root on top":"")+(LL.some(l=>l.dbl)?" · doubly linked: next below, prev above":"")+(BACK.size?" · circular: the last arrow goes back to the first":"")+(GRIDS.length?" · grids: row pointers on the left":"");
+  const heapNote=`${sizes.length===1?sizes[0]+"-byte blocks":"blocks"}, ${LORDER?"in list order":"in address order (list order is set by next)"}`+(TRS.length?" · trees: root on top":"")+(LL.some(l=>l.dbl)?" · doubly linked: next below, prev above":"")+(BACK.size?" · circular: the last arrow goes back to the first":"")+(LL.some(l=>l.kern)?" · list_head: arrows land on the list field":"")+(GRIDS.length?" · grids: row pointers on the left":"");
   o+=`<text x="16" y="${HY-30}" font-size="15" font-weight="600" fill="${INK}">Heap<tspan dx="10" font-size="11.5" font-weight="400" fill="${MUT}">${heapNote}</tspan></text>`;
   if(inner){
     o+=`<text x="300" y="21" font-size="11.5" font-weight="700" fill="${REACH}">Blue shows how ${esc(inner.func)} gets there. Hover it to follow it.</text>`;   /* next to the title, so it's always in view */
@@ -2320,7 +2358,7 @@ function renderCards(s){
       const croom=Math.floor((CW-10-2*ix-(faTxt?6.9*(faTxt.length+3)+10:0)-11)/6.9)-13;   /* the hover "change: … = …;" stops before the address */
       o+=`<g data-box="${key}" data-tip="${esc(fd.name+" ("+fd.type+")"+(fa===null?"":"\nat "+real(fa)+(simple?" ("+show(fa)+")":"")+", the block's start + "+fd.offset)+reachTip(rf,inner?inner.func:""))}">`+
          `<rect x="${bx+3+ix}" y="${fy+3}" width="${CW-6-2*ix}" height="${FH-6}" rx="4" fill="${Cf?AMBG:"transparent"}"${Ix?` stroke="${INK}" stroke-width="1.6"`:""}/>`+
-         `<text x="${bx+11+ix}" y="${fy+17}" font-size="10.5" font-weight="${rf?700:400}" fill="${rf?REACH:MUT}" ${MONO}${rf?EX(rf.v):""}>${esc(rf?orText(rf.v,rf.alt.map(o=>o.v),16):fd.leaf||fd.name)}</text>`+
+         `<text x="${bx+11+ix}" y="${fy+17}" font-size="10.5" font-weight="${rf?700:400}" fill="${rf?REACH:MUT}" ${MONO}${rf?EX(rf.v):""}>${esc((t=>fd.depth?clip(t,Math.max(4,Math.floor((CW-2*ix-24-txt.length*(txt.length>7?7.3:8.5))/6.4))):t)(rf?orText(rf.v,rf.alt.map(o=>o.v),16):fd.leaf||fd.name))}</text>`+   /* nested: the name stops before the value */
          `<text x="${bx+CW-10-ix}" y="${fy+17}" font-size="${txt.length>7?12:14}" font-weight="800" text-anchor="end" fill="${Cf?AMB:un?MUT:INK}" ${MONO}>${Cf?`<tspan class="pop">${esc(txt)}</tspan>`:esc(txt)}</text>`+
          (rf&&croom>=4?`<text class="hov" x="${bx+11+ix}" y="${fy+30}" font-size="10" fill="${MUT}" ${MONO}${EX(rf.v)}>change: <tspan fill="${REACH}">${esc(clip(rf.v,croom))} = …;</tspan></text>`:"")+
          (faTxt?`<text x="${bx+CW-10-ix}" y="${fy+30}" font-size="11.5" text-anchor="end" fill="${MUT}" ${MONO}>at ${faTxt}</text>`:"")+`</g>`;
@@ -2349,6 +2387,7 @@ function renderCards(s){
     return {b,k,x,top:x>=g.tabL-4&&x<=g.tabR+4?g.y-19:g.y-2}; };  /* over the address tab: land just above it */
   /* next links, curving under the cards */
   const tabEnd=a=>cx[a]+8+show(a).length*7.4+18;                 /* the right end of a card's address tab */
+  const inBlk=p=>s.heap.find(n=>!n.freed&&n.kind!=="array"&&p>n.addr&&p<n.addr+(n.size||16));   /* a struct block p points into the middle of */
   s.heap.forEach(n=>{
     const tk=TPOS.has(n.addr)&&TK.get(n.addr);
     FL(n).forEach((fd,j)=>{
@@ -2375,6 +2414,26 @@ function renderCards(s){
           `<circle cx="${x1}" cy="${by}" r="3.4" fill="${col}"${F?DIM:""}/>`;
         if(C||I){ const ly=Math.max(by+Math.max(d*0.75+16,30),lastLy+18); lastLy=ly; low=Math.max(low,ly+14);
           labels+=typeTag(fd.type,x1+5,by+12,col,false)+label(`${fd.name} ${C?"now points to":"is how we reach"} ${show(fd.value)}`,(x1+ha.x)/2,ly,col); }
+        return; }
+      if(!n.freed&&fd.kind==="ptr"&&fd.value&&cx[n.addr]!==undefined&&cx[fd.value]===undefined){   /* into a struct inside another card (&item->list), or a list head on the stack */
+        const tb=inBlk(fd.value), tf=tb&&fieldAt(tb,fd.value,fd.target), sv=!tb&&varAt[fd.value], tp=sv&&pos["v:"+sv.addr];
+        if(!(tf&&tf.fields&&cx[tb.addr]!==undefined)&&!(sv&&sv.fields&&tp)) return;
+        const key="h:"+n.addr+":"+fd.name, C=CH.has(key), I=!C&&TT.inv.has(key), F=TT.on&&!C&&!I, col=C?AMB:I?INK:MUT, mk=C?"a":I?"k":"g", up=/(?:^|\.)prev$/.test(fd.name);
+        const rf=RC[key], pe=rf?rf.v:"p", x1=cx[n.addr]+(up?CW-54:CW-20), y1=up?cy[n.addr]-19:cy[n.addr]+CARDH, d=up?-40:40;
+        let path, tip, tx, ty;
+        if(tf&&tb.addr===n.addr){ const r=rowsOf(n).find(r=>r.f===fd), sy=cy[n.addr]+42+r.y+r.h/2, rt=rowsOf(n).find(r=>r.f===tf), xr=cx[n.addr]+CW;   /* INIT_LIST_HEAD: points to itself */
+          ty=cy[n.addr]+42+rt.y+rt.h/2; tx=xr+2; path=`M${xr-8},${sy} C${xr+30},${sy} ${xr+30},${ty} ${tx},${ty}`;
+          tip=`${show(n.addr)}'s ${fd.name} points to its own ${tf.name}: a list of just itself (empty)`; }
+        else if(tf){ const r=rowsOf(tb).find(r=>r.f===tf), right=cx[tb.addr]>cx[n.addr]||(cx[tb.addr]===cx[n.addr]&&cy[tb.addr]>cy[n.addr]);
+          ty=cy[tb.addr]+42+r.y+r.h/2; tx=right?cx[tb.addr]-2:cx[tb.addr]+CW+2;   /* lands on the side of the field's row */
+          path=`M${x1},${y1} C${x1},${y1+d} ${tx+(right?-44:44)},${ty+(up?-12:12)} ${tx},${ty}`;
+          tip=`points into ${show(tb.addr)}'s ${tf.name} field: container_of(${pe}, ${tb.type}, ${tf.name}) = ${show(tb.addr)}`; }
+        else { tx=tp.x-30+(up?18:0); ty=tp.y+3; const ya=cy[n.addr]-19;                /* up to the list's head */
+          path=`M${x1},${ya} C${x1},${ya-70} ${tx},${ty+70} ${tx},${ty}`;
+          tip=`${fd.name} points to ${sv.global?"the global ":""}${sv.name}: the list's head${sv.global?"":", on the stack"}. The circle goes through it`; }
+        arrows+=`<path data-arrow="${key}" d="${path}" fill="none" ${C?'pathLength="1" class="draw"':""} stroke="${col}" stroke-width="${C||I?2.4:1.5}" stroke-linecap="round" marker-end="url(#m${mk})"${F?DIM:""} data-tip="${esc(tip)}"/>`+
+          (tf&&tb.addr===n.addr?"":`<circle cx="${x1}" cy="${up||!tf?cy[n.addr]-19:y1}" r="3.4" fill="${col}"${F?DIM:""}/>`+(up||!tf?`<line x1="${x1}" y1="${cy[n.addr]-19}" x2="${x1}" y2="${cy[n.addr]+2}" stroke="${col}" stroke-width="1.2"${F?DIM:""}/>`:""));
+        if(C||I) labels+=label(`${fd.name} ${C?"now points to":"is how we reach"} ${show(fd.value)}`,(x1+tx)/2,up||!tf?Math.min(y1,ty)-30:Math.max(y1,ty)+30,col);
         return; }
       if(n.freed||fd.kind!=="ptr"||!fd.value||cx[n.addr]===undefined||cx[fd.value]===undefined) return;   /* the card may be folded away */
       const lk=linksOf(n), key="h:"+n.addr+":"+fd.name, bk=DC.bad.get(key);
@@ -2463,6 +2522,7 @@ function renderCards(s){
     } else { const b=blockOf(v.value), f=b&&fieldAt(b,v.value,v.target);   /* into a node's field */
       if(!f||cx[b.addr]===undefined) return;
       const r=rowsOf(b).find(r=>r.f===f), tx=cx[b.addr], ty=cy[b.addr]+42+r.y+r.h/2; d=`M${sp.x},${sp.y} C${sp.x},${sp.y+70} ${tx-50},${ty} ${tx-2},${ty}`;
+      if(f.fields) dash+=` data-tip="${esc(`points into ${show(b.addr)}'s ${f.name} field: container_of(${v.name}, ${b.type}, ${f.name}) = ${show(b.addr)}`)}"`;   /* struct list_head *p: which item it's in */
       st=star("h:"+b.addr+":"+f.name,tx-6,ty-7,"end",sp.F); }
     arrows+=`<path data-arrow="v:${v.addr}" d="${d}" fill="none" ${sp.C&&!dash?'pathLength="1" class="draw"':""}${dash} stroke="${col}" stroke-width="${sp.C||sp.I?2.3:1.5}" stroke-linecap="round" marker-end="url(#m${mk})"${sp.F?DIM:""}/>`+
       `<circle cx="${sp.x}" cy="${sp.y}" r="3.6" fill="${col}"${sp.F?DIM:""}/>`+typeTag(v.type,sp.x+6,sp.y+14,col,sp.F);
@@ -2470,14 +2530,15 @@ function renderCards(s){
   }));
   const ptrTo=(sx,sy,p,t,self,C,Rd,F,id)=>{                       /* an arrow from (sx, sy) at the bottom of a stack box to whatever p points at */
     const ia=intoArray({value:p,target:t}), ha=!ia&&heapHit(p,t), b=!ia&&!ha&&byAddr[p], fb=!ia&&!ha&&!b&&blockOf(p), ff=fb&&fieldAt(fb,p,t), tv=!ia&&!ha&&!b&&!ff&&stackAt[p];
-    let col=C?AMB:Rd?INK:MUT, mk=C?"a":Rd?"k":"g", d="", dash="";
+    let col=C?AMB:Rd?INK:MUT, mk=C?"a":Rd?"k":"g", d="", dash="", tip="";
     if(ia){ const ty=ia.y??ia.tp.y; d=`M${sx},${sy} C${sx},${sy+44} ${ia.x},${ty+44} ${ia.x},${ty+3}`; }
     else if(ha){ d=`M${sx},${sy} C${sx},${sy+60} ${ha.x},${ha.top-60} ${ha.x},${ha.top}`; if(ha.b.freed){ col=BAD; mk="r"; dash=' stroke-dasharray="5 4"'; } }
     else if(b&&cx[p]!==undefined){ const x2=cx[p]+CW/2-30, y2=x2<=tabEnd(p)+4?cy[p]-19:cy[p]-2; d=`M${sx},${sy} C${sx},${sy+60} ${x2},${y2-60} ${x2},${y2}`; if(b.freed){ col=BAD; mk="r"; dash=' stroke-dasharray="5 4"'; } }
-    else if(ff&&cx[fb.addr]!==undefined){ const r=rowsOf(fb).find(r=>r.f===ff), tx=cx[fb.addr], ty=cy[fb.addr]+42+r.y+r.h/2; d=`M${sx},${sy} C${sx},${sy+70} ${tx-50},${ty} ${tx-2},${ty}`; }   /* into a field: lands on its row */
+    else if(ff&&cx[fb.addr]!==undefined){ const r=rowsOf(fb).find(r=>r.f===ff), tx=cx[fb.addr], ty=cy[fb.addr]+42+r.y+r.h/2; d=`M${sx},${sy} C${sx},${sy+70} ${tx-50},${ty} ${tx-2},${ty}`;   /* into a field: lands on its row */
+      if(ff.fields) tip=`points into ${show(fb.addr)}'s ${ff.name} field: container_of(${(RC[id]||{}).v||"p"}, ${fb.type}, ${ff.name}) = ${show(fb.addr)}`; }
     else if(tv&&tv!==self&&pos["v:"+tv.addr]){ const tp=pos["v:"+tv.addr], tx=tp.x-34; d=`M${sx},${sy} C${sx},${sy+44} ${tx},${tp.y+44} ${tx},${tp.y+3}`; }
     else return "";
-    return `<path data-arrow="${id}" d="${d}" fill="none" ${C&&!dash?'pathLength="1" class="draw"':""}${dash} stroke="${col}" stroke-width="${C||Rd?2.3:1.5}" stroke-linecap="round" marker-end="url(#m${mk})"${F?DIM:""}/>`+
+    return `<path data-arrow="${id}" d="${d}" fill="none" ${C&&!dash?'pathLength="1" class="draw"':""}${dash} stroke="${col}" stroke-width="${C||Rd?2.3:1.5}" stroke-linecap="round" marker-end="url(#m${mk})"${F?DIM:""}${tip?` data-tip="${esc(tip)}"`:""}/>`+
       `<circle cx="${sx}" cy="${sy}" r="3.4" fill="${col}"${F?DIM:""}/>`; };
   s.frames.forEach(f=>f.vars.forEach(v=>{                         /* int *ps[3], char *words[3]: an arrow from each slot that points at a box */
     const sp=pos["v:"+v.addr]; if(!sp||!sp.arr||v.kind!=="other"||v.init===false) return;
@@ -2562,7 +2623,7 @@ function memModel(s){
           r.vl.push(junk?{name:v.name,txt:"??",cls:"junk"}:v.kind==="ptr"?{name:v.name,...ptrTxt(raw)}:{name:v.name,txt:v.kind==="int"?String(v.value):"—"});
           if(junk) r.tip="not set yet: these are leftover bytes";
           const rc=RC["v:"+v.addr]; if(rc) r.tip=((r.tip||"")+reachTip(rc,who)).trim();
-          r.tip=(`${v.name}: ${v.arg?"parameter":"local"} of ${f.func}${v.decl?`, line ${v.decl}`:""}\n`+(r.tip||"")).trim();
+          r.tip=(`${v.name}: ${f.globals?"a global":`${v.arg?"parameter":"local"} of ${f.func}`}${v.decl?`, line ${v.decl}`:""}\n`+(r.tip||"")).trim();
           if(!r.lad) r.lad=`${v.addr}|${f.func}|${v.name}`;
           const t=v.kind==="ptr"&&!junk?num(le(raw)):0; if(t) r.ptrs=(r.ptrs||[]).concat({to:t,freed:freedAt(t),k:"v:"+v.addr});
           r.bx=(r.bx||[]).concat("v:"+v.addr);
@@ -2682,7 +2743,7 @@ function renderMem(s){
   M.frames.forEach(f=>{
     let body="", last=null;
     f.rows.forEach(r=>{ if(last!==null&&last-r.addr>8) body+=`<div class="gapr">⋯ ${last-r.addr-8} bytes that are not a variable</div>`; body+=row(r); last=r.addr; });
-    st+=`<div class="fr${f.sp?" sp":""}" style="--fc:${fcol(f.func)[0]};--ft:${fcol(f.func)[1]}"><div class="fh">${esc(f.func)}${f.inner&&M.frames.length>1?"<em>running now</em>":""}${f.sig?`<span class="sig">${esc(f.sig)}</span>`:""}${f.inner&&RET?`<span class="ret${RET.recv?"":" bad"}">${esc(`↩ ${RET.func} returned ${RET.txt}`+(RET.recv?`, ${RET.stored?"now in":"going into"} ${RET.recv.name}`:", but nothing stores it"))}</span>`:""}</div>${f.rows.length?OFFS+body:`<div class="note">no variables</div>`}</div>`;
+    st+=`<div class="fr${f.sp?" sp":""}" style="--fc:${fcol(f.func)[0]};--ft:${fcol(f.func)[1]}"><div class="fh">${f.func===GFN?"Globals":esc(f.func)}${f.inner&&M.frames.length>1?"<em>running now</em>":""}${f.sig?`<span class="sig">${esc(f.sig)}</span>`:""}${f.inner&&RET?`<span class="ret${RET.recv?"":" bad"}">${esc(`↩ ${RET.func} returned ${RET.txt}`+(RET.recv?`, ${RET.stored?"now in":"going into"} ${RET.recv.name}`:", but nothing stores it"))}</span>`:""}</div>${f.rows.length?OFFS+body:`<div class="note">no variables</div>`}</div>`;
   });
   let nhid=0;
   M.blocks.forEach(({n,rows,more})=>{
@@ -2765,6 +2826,7 @@ function loadTrace(txt){
     st.heap=(st.heap||[]).map(n=> n.fields ? n : {addr:n.addr, type:n.type||"struct", freed:false,
       fields:[{name:"val",type:"int",kind:"int",value:n.val},{name:"next",type:"ptr",kind:"ptr",value:n.next}]});
     (st.frames||[]).forEach(fr=>(fr.vars||[]).forEach(v=>{ if(v.struct===undefined) v.struct=v.node_ptr?"struct":null; }));
+    if(st.globals&&st.globals.length&&!st.frames.some(f=>f.globals)) st.frames.push({func:GFN,globals:true,vars:st.globals});   /* your file's globals: seen from every function */
   });
   buildMap(TRACE); markAllocator(TRACE); markHeapSteps(TRACE); markInit(TRACE); markArrInit(TRACE); markFieldInit(TRACE); frameColors(TRACE); EXNAMES=null; markBugs(TRACE); WATCH.forEach(w=>w.vals=null); EXNAMES=null; EXC=new Map(); RCACHE.clear(); at=0;
   try{ const v=+localStorage.getItem(posKey()); if(v>0&&v<TRACE.steps.length) at=v; }catch(e){}          /* back where you were */

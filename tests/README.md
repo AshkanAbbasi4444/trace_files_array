@@ -31,5 +31,6 @@ Small C programs and their traces, to re-check `node_cards_viewer.html` and `tra
 | dlist | a 4-node doubly linked list built by hand, one node inserted in the middle and one deleted: next arrows below, prev above, `1 ⇄ 2 ⇄ 3`, the half-done links in red while it inserts |
 | dlist_broken | the same list with `c->prev = a` (should be b): a red prev arrow and "0x300's prev doesn't point back to 0x200" |
 | circular | a circular singly linked list of 3 nodes, walked with do/while, then cut and freed: `head: 1 → 2 → 3 → (back to 1)` and the last arrow curving back |
+| klist | kernel style: `struct list_head`, INIT_LIST_HEAD, list_add_tail, list_del, container_of with offsetof, `struct item { int val; struct list_head list; }`, a global LIST_HEAD and one on the stack |
 
 `../remove_element.json` was made by the older trace.py: it checks old traces still open the same.
