@@ -329,6 +329,7 @@ button.icon{width:30px;padding:4px 0;font-weight:700;border-radius:50%}
   <div class="hrow" style="grid-template-columns:1fr;gap:3px;padding:5px 0"><span class="sw txt" style="font-size:11.5px;width:auto;white-space:nowrap">"hello"  h e l l o \0</span><span>A char array: one slot per char and the \0 that ends it, with its text on the line above. <b>char *words[3]</b>: each slot's string is above it, and every pointer slot gets its own arrow. <b>struct pair a[4]</b>: each slot is a little card with its fields</span></div>
   <div class="hrow" style="grid-template-columns:1fr;gap:3px;padding:5px 0"><svg width="190" height="62" aria-hidden="true" font-family="'IBM Plex Sans',system-ui,sans-serif" font-size="11.5"><rect x="70" y="2" width="44" height="20" rx="4" fill="#fff" stroke="#A9B6C6"/><rect x="20" y="38" width="44" height="20" rx="4" fill="#fff" stroke="#A9B6C6"/><rect x="120" y="38" width="44" height="20" rx="4" fill="#fff" stroke="#A9B6C6"/><path d="M80,22 C80,30 42,30 42,37 M104,22 C104,30 142,30 142,37" stroke="#5B6B82" stroke-width="1.4" fill="none"/></svg><span>A tree: a struct with <b>left</b> and <b>right</b> (or <b>lchild</b>, <b>rchild</b>) pointers to its own type. Root on top, children below, left to right in in-order. A dashed <b>NULL</b> stub under a missing child. Several trees sit side by side; other blocks follow below. Lists stay in a row</span></div>
   <div class="hrow" style="grid-template-columns:1fr;gap:3px;padding:5px 0"><svg width="190" height="58" aria-hidden="true" font-family="'IBM Plex Mono',ui-monospace,Menlo,monospace" font-size="11.5"><rect x="1" y="1" width="150" height="56" rx="8" fill="#fff" stroke="#A9B6C6"/><text x="9" y="15" fill="#5B6B82">val</text><text x="142" y="15" text-anchor="end" font-weight="800" fill="#14213D">7</text><rect x="6" y="20" width="140" height="33" rx="5" fill="#F6F8FB" stroke="#D5DDE6"/><text x="12" y="33" font-weight="700" fill="#5B6B82">pos</text><text x="20" y="48" fill="#5B6B82">x</text><text x="138" y="48" text-anchor="end" font-weight="800" fill="#5B6B82">??</text></svg><span>A struct inside a struct: a box of its own inside the card (or the variable's box), with its own fields, highlights and ?? until set. Named like <b>item-&gt;pos.x</b>, <b>(*item).pos.x</b> and <b>&amp;item-&gt;pos</b>. A struct variable on the stack shows its fields one per line</span></div>
+  <div class="hrow" style="grid-template-columns:1fr;gap:3px;padding:5px 0"><svg width="190" height="60" aria-hidden="true"><rect x="2" y="20" width="60" height="30" rx="6" fill="#fff" stroke="#A9B6C6"/><rect x="100" y="20" width="60" height="30" rx="6" fill="#fff" stroke="#A9B6C6"/><path d="M50,50 C50,60 112,60 112,53" stroke="#5B6B82" stroke-width="1.5" fill="none"/><path d="M108,49 L112,55 L116,49z" fill="#5B6B82"/><path d="M140,20 C140,4 48,4 48,15" stroke="#B91C1C" stroke-width="1.8" fill="none"/><path d="M44,13 L48,19 L52,13z" fill="#B91C1C"/></svg><span>A doubly linked list (<b>next</b> and <b>prev</b>): cards in next order, <b>next</b> arrows below, <b>prev</b> arrows above; the list line reads <b>1 ⇄ 2 ⇄ 3 → NULL</b>. A <b>red</b> arrow and a ⚠ note: a node whose prev (or next) doesn't point back, like <i>0x200's prev doesn't point back to 0x100</i></span></div>
   <div class="hrow"><span class="sw txt" style="font-weight:400;color:#5B6B82">at 0x…</span><span>Under every box: the address where it lives (the simple one, or the real one: see View)</span></div>
   <div class="hrow" style="grid-template-columns:1fr;gap:3px;padding:5px 0"><span class="sw txt" style="font-weight:400;width:auto;white-space:nowrap">printf("*ptr = %d\n", *ptr);  → 42</span><span>Hover a box, a field or an array slot: the printf lines that print its value and its address from the running function, and what they print now. Click it to pin them, with a Copy button per line (Esc lets go)</span></div>
   <div class="hrow"><span class="sw txt" style="font-size:11.5px;color:#5B6B82;border:1px solid #A9B6C6;border-radius:999px;background:#F1F5F9;padding:0 6px">read-only</span><span>A char * to a string literal: the text it points to lives in read-only memory</span></div>
@@ -1359,18 +1360,40 @@ function sysSlot(f,a,fb,lo){                                     /* return addr,
 const fieldHex=(n,f)=>n.bytes&&f.offset!=null?n.bytes.slice(f.offset*2,(f.offset+f.size)*2):null;
 
 /* ---------- list line: one line per list, like head: 1 → 6 → 2 → NULL (3 nodes) ---------- */
+function linksOf(n){                                             /* a list node's own links: next, and prev too when it's doubly linked */
+  if(!n||n.kind==="array"||!n.fields) return null;
+  const ps=n.fields.filter(f=>f.kind==="ptr"&&(!f.target||f.target===n.type));
+  if(ps.length===1) return {next:ps[0],prev:null};
+  const nx=ps.find(f=>/^(?:next|nxt|fwd|forward)$/.test(f.name)), pv=ps.find(f=>/^(?:prev|previous|prv|back|bwd|backward)$/.test(f.name));
+  return ps.length===2&&nx&&pv?{next:nx,prev:pv}:null;
+}
+function dllCheck(s){                                            /* doubly linked: a->next->prev must be a, and a->prev->next must be a */
+  const byA={}, R=reachable(s), bad=new Map(), notes=[];          /* bad: "h:addr:field" of the arrow to draw red -> what's wrong */
+  s.heap.forEach(n=>byA[n.addr]=n);
+  const live=n=>n&&!n.freed&&R.has(n.addr), L=n=>live(n)?linksOf(n):null;
+  s.heap.forEach(a=>{ const la=L(a); if(!la||!la.prev||!la.next.value) return;
+    const b=byA[la.next.value], lb=L(b); if(!lb||!lb.prev||lb.prev.value===a.addr) return;
+    const t=`${show(b.addr)}'s ${lb.prev.name} doesn't point back to ${show(a.addr)}`;
+    bad.set(lb.prev.value?"h:"+b.addr+":"+lb.prev.name:"h:"+a.addr+":"+la.next.name,t); notes.push(t); });
+  s.heap.forEach(a=>{ const la=L(a); if(!la||!la.prev||!la.prev.value) return;
+    const c=byA[la.prev.value], lc=L(c); if(!lc||!lc.prev||lc.next.value===a.addr||bad.has("h:"+a.addr+":"+la.prev.name)) return;
+    const t=`${show(c.addr)}'s ${lc.next.name} doesn't point back to ${show(a.addr)}`;
+    bad.set("h:"+a.addr+":"+la.prev.name,t); notes.push(t); });
+  return {bad,notes};
+}
 function listLines(s){
-  const byA={}, pointedAt=new Set(), heads={}, inner=s.frames[0], R=reachable(s);
-  s.heap.forEach(n=>{ byA[n.addr]=n; if(!n.freed&&R.has(n.addr)) (n.fields||[]).forEach(f=>{ if(f.kind==="ptr"&&f.value) pointedAt.add(f.value); }); });
-  const nextOf=n=>{ const ps=(n.fields||[]).filter(f=>f.kind==="ptr"&&(!f.target||f.target===n.type)); return ps.length===1?ps[0]:null; };
+  const byA={}, pointedAt=new Set(), heads={}, inner=s.frames[0], R=reachable(s), DC=dllCheck(s);
+  s.heap.forEach(n=>{ byA[n.addr]=n; const lk=linksOf(n); if(!n.freed&&R.has(n.addr)) (n.fields||[]).forEach(f=>{ if(f.kind==="ptr"&&f.value&&!(lk&&f===lk.prev)) pointedAt.add(f.value); }); });   /* a prev link doesn't make a node "not the head" */
+  const nextOf=n=>{ const lk=linksOf(n); return lk?lk.next:null; }, prevOf=n=>{ const lk=linksOf(n); return lk?lk.prev:null; };
   const valOf=n=>{ const f=(n.fields||[]).find(f=>f.kind==="int"); return f?String(f.value):show(n.addr); };
   s.frames.forEach(f=>f.vars.forEach(v=>{                        /* a list starts where a variable points and no node does */
     if(!v.struct||v.init===false||!v.value) return;
     const n=byA[v.value]; if(!n||(!n.freed&&(pointedAt.has(v.value)||!nextOf(n)))) return;
     (heads[v.value]=heads[v.value]||[]).push((f===inner?"":f.func+"'s ")+v.name);
   }));
+  const said=new Set();                                          /* each broken pair is told once */
   return Object.entries(heads).map(([a,names])=>{
-    let p=+a, parts=[], end="NULL", bad=false; const seen=new Set();
+    let p=+a, parts=[], seps=[], end="NULL", bad=false, dbl=false; const seen=new Set(), notes=[];
     while(p){
       const n=byA[p];
       if(!n){ end=`${show(p)} (not a block)`; bad=true; break; }
@@ -1378,16 +1401,20 @@ function listLines(s){
       if(seen.has(p)){ end=`cycle! back to ${valOf(n)}`; bad=true; break; }
       seen.add(p); parts.push(valOf(n));
       if(parts.length>40){ end="…"; break; }
-      const nx=nextOf(n); p=nx?nx.value:0;
+      const nx=nextOf(n), pv=prevOf(n); p=nx?nx.value:0; if(pv) dbl=true;
+      const m=byA[p], pm=m&&!m.freed&&prevOf(m); seps.push(pv&&pm&&pm.value===n.addr?" ⇄ ":" → ");   /* 1 ⇄ 2: they point at each other */
+      [nx&&"h:"+n.addr+":"+nx.name,pv&&"h:"+n.addr+":"+pv.name,pm&&"h:"+p+":"+pm.name].forEach(k=>{ const t=k&&DC.bad.get(k); if(t&&!said.has(t)){ said.add(t); notes.push(t); } });
     }
-    return {head:+a, names:names.join(", "), text:parts.concat([end]).join(" → "), count:parts.length, bad};
+    if(!dbl) return {head:+a, names:names.join(", "), text:parts.concat([end]).join(" → "), count:parts.length, bad};
+    seps[seps.length-1]=" → ";                                     /* the last one: → NULL */
+    return {head:+a, names:names.join(", "), text:parts.map((x,k)=>x+seps[k]).join("")+end, count:parts.length, bad:bad||notes.length>0, notes, dbl};
   });
 }
 function heapOrder(s,blocks){                                     /* lay the cards out along the lists, so arrows stop crossing */
   const byA={}, out=[], seen=new Set(); blocks.forEach(n=>byA[n.addr]=n);
   listLines(s).forEach(l=>{ let p=l.head;
     while(p&&byA[p]&&!seen.has(p)){ seen.add(p); out.push(byA[p]);
-      const nx=(byA[p].fields||[]).find(f=>f.kind==="ptr"&&(!f.target||f.target===byA[p].type)); p=nx?nx.value:0; } });
+      const lk=linksOf(byA[p]), nx=lk?lk.next:(byA[p].fields||[]).find(f=>f.kind==="ptr"&&(!f.target||f.target===byA[p].type)); p=nx?nx.value:0; } });
   blocks.forEach(n=>{ if(!seen.has(n.addr)) out.push(n); });
   return out;
 }
@@ -1805,7 +1832,7 @@ function renderCards(s){
   const TT=touched(at), CH=TT.ch, R=reachable(s), inner=s.frames[0], RC=reach(s), CI=callInfo(s), RET=retInfo(s);
   const AP=arrPrep(), RAc=ranAt(at), PST=at>0?TRACE.steps[at-1]:null, varAt={};                 /* AP.rows: lines of ↑i marks an array needs */
   s.frames.forEach(f=>f.vars.forEach(v=>{ if(v.addr) varAt[v.addr]=v; }));
-  const LL=listLines(s), SLOTW=184, SLOTH=Math.max(86+AP.rows*14+AP.ext,AP.sh), CW=218, STEP=236, FH=36, DIM=' opacity="0.22"';
+  const LL=listLines(s), LLN=LL.flatMap(l=>[l,...(l.notes||[]).map(note=>({note}))]), DC=dllCheck(s), SLOTW=184, SLOTH=Math.max(86+AP.rows*14+AP.ext,AP.sh), CW=218, STEP=236, FH=36, DIM=' opacity="0.22"';
   const HOPC=["#BFDBFE","#93C5FD","#3B82F6","#1D4ED8"], hopc=d=>HOPC[Math.min(d,3)];          /* own, 1, 2, 3+ hops away */
   const EX=e=>` data-ex="${esc(e)}"`;                                                        /* hover it: its hops light up */
   const isNew=f=>at>0&&f===inner&&TRACE.steps[at-1].frames.length<s.frames.length;
@@ -2046,13 +2073,20 @@ function renderCards(s){
     }
     x+=w+14; xmax=Math.max(xmax,x);
   });
-  const HY=y-34+276+(SLOTH-86)+18*LL.length;                                  /* the heap starts under the last row of frames */
+  const HY=y-34+276+(SLOTH-86)+18*LLN.length;                                  /* the heap starts under the last row of frames */
   /* heap cards, in address order */
   const own=new Set(s.heap.map(n=>n.addr));
   const hid=FOLD?s.heap.filter(n=>n.freed||!R.has(n.addr)):[], hset=new Set(hid.map(n=>n.addr));
   const blocks=s.heap.filter(n=>!hset.has(n.addr)), ordered=LORDER?heapOrder(s,blocks):blocks;
   const items=[...ordered.map(n=>({n,a:n.addr})),...(s.chunks||[]).filter(c=>!own.has(c.addr)).map(c=>({c,a:c.addr}))];
   if(!LORDER) items.sort((p,q)=>p.a-q.a);
+  const DLL=LL.filter(l=>l.dbl);
+  if(!LORDER&&DLL.length){                                        /* a doubly linked list: its cards in next order, where its first card would be */
+    const inL=new Map(), out=[], done=new Set(), byI=new Map(items.filter(it=>it.n).map(it=>[it.n.addr,it]));
+    [...DLL].sort((a,b)=>b.count-a.count).forEach((l,k)=>{ let p=l.head; while(p&&byI.has(p)&&!inL.has(p)){ inL.set(p,k); const lk=linksOf(byI.get(p).n); p=lk&&lk.next.value; } });   /* the longest list first: a node half-way through an insert stays in it */
+    items.forEach(it=>{ const k=it.n?inL.get(it.n.addr):undefined; if(k===undefined){ out.push(it); return; } if(done.has(k)) return; done.add(k);
+      [...inL.entries()].filter(e=>e[1]===k).forEach(e=>out.push(byI.get(e[0]))); });
+    items.splice(0,items.length,...out); }
   if(hid.length) items.push({hid});
   const HGEO={};                                                 /* heap arrays: their slots, and how wide the card is */
   items.forEach(it=>{ const n=it.n; if(!n||n.kind!=="array") return; const A=arrSlots(n); if(!A) return;
@@ -2102,8 +2136,9 @@ function renderCards(s){
   const W=Math.max(zf?980:vis, xmax+2, lmax+16);
   const RY=k=>LAY[k].y, cy={};                                                              /* each card's top */
   const sizes=[...new Set(s.heap.map(n=>n.size).filter(Boolean))];
-  LL.forEach((l,k)=>{ o+=`<text x="16" y="${HY-30-18*(LL.length-k)}" font-size="12" fill="${l.bad?BAD:INK}" ${MONO} paint-order="stroke" stroke="#fff" stroke-width="4"><tspan font-weight="700">${esc(l.names)}:</tspan> ${esc(l.text)} ${l.count?`<tspan fill="${MUT}">(${l.count} node${l.count===1?"":"s"})</tspan>`:""}</text>`; });   /* list lines */
-  const heapNote=`${sizes.length===1?sizes[0]+"-byte blocks":"blocks"}, ${LORDER?"in list order":"in address order (list order is set by next)"}`+(TRS.length?" · trees: root on top":"")+(GRIDS.length?" · grids: row pointers on the left":"");
+  LLN.forEach((l,k)=>{ o+=l.note?`<text x="28" y="${HY-30-18*(LLN.length-k)}" font-size="12" font-weight="700" fill="${BAD}" paint-order="stroke" stroke="#fff" stroke-width="4">⚠ ${esc(l.note)}</text>`   /* a broken prev/next pair */
+    :`<text x="16" y="${HY-30-18*(LLN.length-k)}" font-size="12" fill="${l.bad?BAD:INK}" ${MONO} paint-order="stroke" stroke="#fff" stroke-width="4"><tspan font-weight="700">${esc(l.names)}:</tspan> ${esc(l.text)} ${l.count?`<tspan fill="${MUT}">(${l.count} node${l.count===1?"":"s"})</tspan>`:""}</text>`; });   /* list lines */
+  const heapNote=`${sizes.length===1?sizes[0]+"-byte blocks":"blocks"}, ${LORDER?"in list order":"in address order (list order is set by next)"}`+(TRS.length?" · trees: root on top":"")+(DLL.length?" · doubly linked: next below, prev above":"")+(GRIDS.length?" · grids: row pointers on the left":"");
   o+=`<text x="16" y="${HY-30}" font-size="15" font-weight="600" fill="${INK}">Heap<tspan dx="10" font-size="11.5" font-weight="400" fill="${MUT}">${heapNote}</tspan></text>`;
   if(inner){
     o+=`<text x="300" y="21" font-size="11.5" font-weight="700" fill="${REACH}">Blue shows how ${esc(inner.func)} gets there. Hover it to follow it.</text>`;   /* next to the title, so it's always in view */
@@ -2330,11 +2365,20 @@ function renderCards(s){
           labels+=typeTag(fd.type,x1+5,by+12,col,false)+label(`${fd.name} ${C?"now points to":"is how we reach"} ${show(fd.value)}`,(x1+ha.x)/2,ly,col); }
         return; }
       if(n.freed||fd.kind!=="ptr"||!fd.value||cx[n.addr]===undefined||cx[fd.value]===undefined) return;   /* the card may be folded away */
-      const key="h:"+n.addr+":"+fd.name, C=CH.has(key), I=!C&&TT.inv.has(key), F=TT.on&&!C&&!I, col=C?AMB:I?INK:MUT;
+      const lk=linksOf(n), key="h:"+n.addr+":"+fd.name, bk=DC.bad.get(key);
+      if(lk&&lk.prev&&fd===lk.prev){                             /* doubly linked: prev goes over the top, so it never crosses next */
+        const C=CH.has(key), I=!C&&TT.inv.has(key), F=TT.on&&!C&&!I&&!bk, col=bk?BAD:C?AMB:I?INK:MUT, mk=bk?"r":C?"a":I?"k":"g";
+        const x1=cx[n.addr]+CW-54, x2=cx[fd.value]+CW-26, ty=cy[n.addr]-19, ty2=cy[fd.value]-19, d=26+Math.abs(cx[fd.value]-cx[n.addr])/STEP*10;
+        const path=ty===ty2?`M${x1},${ty} C${x1},${ty-d} ${x2},${ty2-d} ${x2},${ty2-3}`:`M${x1},${ty} C${x1},${ty-60} ${x2},${ty2-60} ${x2},${ty2-3}`;
+        arrows+=`<path data-arrow="${key}" d="${path}" fill="none" ${C&&!bk?'pathLength="1" class="draw"':""} stroke="${col}" stroke-width="${C||I||bk?2.4:1.5}" stroke-linecap="round" marker-end="url(#m${mk})"${F?DIM:""}${bk?` data-tip="${esc(`${fd.name} of ${show(n.addr)} points to ${show(fd.value)}\n${bk}`)}"`:""}/>`+
+          `<circle cx="${x1}" cy="${ty}" r="3.4" fill="${col}"${F?DIM:""}/><line x1="${x1}" y1="${ty}" x2="${x1}" y2="${cy[n.addr]+2}" stroke="${col}" stroke-width="1.2"${F?DIM:""}/>`;
+        if(C||I||bk) labels+=label(bk?bk:`${fd.name} ${C?"now points to":"is how we reach"} ${show(fd.value)}`,(x1+x2)/2,(ty===ty2?ty-d*0.75:Math.min(ty,ty2)-40)-4,col);
+        return; }
+      const C=CH.has(key), I=!C&&TT.inv.has(key), F=TT.on&&!C&&!I, col=C?AMB:I?INK:MUT;
       const x1=cx[n.addr]+CW-20, x2=cx[fd.value]+20, by=cy[n.addr]+CARDH;
-      const d=20+Math.abs(cx[fd.value]-cx[n.addr])/STEP*12+j*10;
-      arrows+=`<path data-arrow="${key}" d="${link(x1,n.addr,x2,fd.value,d)}" fill="none" ${C?'pathLength="1" class="draw"':""} stroke="${col}" stroke-width="${C||I?2.4:1.5}" stroke-linecap="round" marker-end="url(#m${C?"a":I?"k":"g"})"${F?DIM:""}/>`+
-        `<circle cx="${x1}" cy="${by}" r="3.4" fill="${col}"${F?DIM:""}/>`;
+      const d=20+Math.abs(cx[fd.value]-cx[n.addr])/STEP*12+j*10, bc=bk?BAD:col;   /* a next whose node doesn't point back: red */
+      arrows+=`<path data-arrow="${key}" d="${link(x1,n.addr,x2,fd.value,d)}" fill="none" ${C&&!bk?'pathLength="1" class="draw"':""} stroke="${bc}" stroke-width="${C||I||bk?2.4:1.5}" stroke-linecap="round" marker-end="url(#m${bk?"r":C?"a":I?"k":"g"})"${F&&!bk?DIM:""}${bk?` data-tip="${esc(bk)}"`:""}/>`+
+        `<circle cx="${x1}" cy="${by}" r="3.4" fill="${bc}"${F&&!bk?DIM:""}/>`;
       labels+=cy[n.addr]===cy[fd.value]?star("b:"+fd.value,x2+6,by+17,"start",F):star("b:"+fd.value,x2+64,cy[fd.value]-4,"start",F);
       if(C||I){ const ly=Math.max(by+Math.max(d*0.75+16,30),lastLy+18); lastLy=ly; low=Math.max(low,ly+14);
         labels+=typeTag(fd.type,x1+5,by+12,col,false)+label(`${fd.name} ${C?"now points to":"is how we reach"} ${show(fd.value)}`,(x1+x2)/2,ly,col); }
@@ -2643,7 +2687,7 @@ function renderMem(s){
   const d=Math.max(12,Math.min(70,(timer?300:1000)/Math.max(1,k)));
   ADELAY=timer||!k?0:Math.round((k-1)*d+220);                           /* changed arrows draw once their bytes are in */
   const LIBL=TRACE.watchpoints!==undefined?`<div class="legend" style="margin-top:4px"><span><i class="c lib">2a</i>${TRACE.watchpoints?"written inside a library call like free(): a gdb watchpoint caught it":"gdb watchpoints didn't work on this computer, so writes inside library calls aren't marked"}</span></div>`:"";
-  return `<div class="mem${simple?"":" real"}" style="--d:${Math.round(d)}ms">${LEGEND}${LIBL}<div class="cols"><div class="stk"><h2>Stack<span>high addresses on top, grouped by function</span></h2>${st||`<div class="note">no variables</div>`}</div><div class="hp"><h2>Heap<span>malloc's 16-byte header in grey on top</span></h2>${LLm.map(l=>`<div class="lists${l.bad?" bad":""}"><b>${esc(l.names)}:</b> ${esc(l.text)} ${l.count?`<span>(${l.count} node${l.count===1?"":"s"})</span>`:""}</div>`).join("")}<div class="heap">${hp||`<div class="note">no heap blocks yet</div>`}</div></div></div></div>`;
+  return `<div class="mem${simple?"":" real"}" style="--d:${Math.round(d)}ms">${LEGEND}${LIBL}<div class="cols"><div class="stk"><h2>Stack<span>high addresses on top, grouped by function</span></h2>${st||`<div class="note">no variables</div>`}</div><div class="hp"><h2>Heap<span>malloc's 16-byte header in grey on top</span></h2>${LLm.map(l=>`<div class="lists${l.bad?" bad":""}"><b>${esc(l.names)}:</b> ${esc(l.text)} ${l.count?`<span>(${l.count} node${l.count===1?"":"s"})</span>`:""}</div>`+(l.notes||[]).map(t=>`<div class="lists bad">⚠ ${esc(t)}</div>`).join("")).join("")}<div class="heap">${hp||`<div class="note">no heap blocks yet</div>`}</div></div></div></div>`;
 }
 let ARROWS=[], ADELAY=0;
 function drawArrows(anim){                                       /* each pointer row -> the row whose address it holds */
