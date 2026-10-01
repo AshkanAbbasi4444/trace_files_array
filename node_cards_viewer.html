@@ -307,6 +307,7 @@ button.icon{width:30px;padding:4px 0;font-weight:700;border-radius:50%}
   <div class="hrow"><span class="sw freed"></span><span>Freed: given back with free()</span></div>
   <div class="hrow" style="grid-template-columns:1fr;gap:3px;padding:5px 0"><span class="sw txt" style="font-size:11px;white-space:nowrap;width:auto">free() wrote 16 bytes here</span><span>Under a card: a library call wrote into this block on this line (a gdb watchpoint caught it)</span></div>
   <div class="hrow"><span class="sw txt">??</span><span>Not set yet: whatever bytes were left there</span></div>
+  <div class="hrow" style="grid-template-columns:1fr;gap:3px;padding:5px 0"><svg width="190" height="64" aria-hidden="true" font-family="'IBM Plex Mono',ui-monospace,Menlo,monospace" font-size="11.5"><g fill="#5B6B82" text-anchor="middle"><text x="17" y="12">[0]</text><text x="49" y="12">[1]</text><text x="81" y="12">[2]</text><text x="113" y="12">[3]</text></g><rect x="1" y="17" width="32" height="24" rx="2" fill="#fff" stroke="#A9B6C6"/><rect x="65" y="17" width="32" height="24" rx="2" fill="#fff" stroke="#A9B6C6"/><rect x="33" y="17" width="32" height="24" rx="2" fill="#fff" stroke="#14213D" stroke-width="2"/><rect x="97" y="17" width="32" height="24" rx="2" fill="#FEF3C7" stroke="#B45309" stroke-width="2"/><g font-size="13" font-weight="700" text-anchor="middle"><text x="17" y="34" fill="#14213D">0</text><text x="49" y="34" fill="#14213D">1</text><text x="81" y="34" fill="#14213D">3</text><text x="113" y="34" fill="#B45309">2</text></g><g font-weight="700"><text x="45.5" y="57" fill="#0F766E">↑i</text><text x="109.5" y="57" fill="#B45309">↑k</text></g><text x="142" y="12" fill="#94A3B8" font-style="italic">end</text><rect x="133" y="17" width="32" height="24" rx="2" fill="none" stroke="#94A3B8" stroke-dasharray="3 3"/></svg><span>An array: one box per element, its index on top. Amber: the element this line changed. Dark outline: an element it read. <b>↑i</b>: an int indexing the array right now, from any function that has a pointer to it, in that function's colour (amber if it just moved). A dashed <i>end</i> box is one past the last element</span></div>
   <div class="hrow"><svg width="56" height="22" aria-hidden="true"><rect x="2" y="4" width="8" height="14" rx="2" fill="#BFDBFE"/><rect x="14" y="4" width="8" height="14" rx="2" fill="#93C5FD"/><rect x="26" y="4" width="8" height="14" rx="2" fill="#3B82F6"/><rect x="38" y="4" width="8" height="14" rx="2" fill="#1D4ED8"/></svg><span>Bar on the left of a box: how many hops away it is (own, 1, 2, 3+)</span></div>
   <div class="hrow"><svg width="56" height="22" aria-hidden="true"><rect x="2" y="2" width="5" height="18" rx="2.5" fill="#334155"/><rect x="16" y="2" width="5" height="18" rx="2.5" fill="#0F766E"/><rect x="30" y="2" width="5" height="18" rx="2.5" fill="#6D28D9"/></svg><span>Each function has its own colour; main is always slate</span></div>
  </div><div>
@@ -759,7 +760,149 @@ function arrText(type,size,hex,max){
   if(max&&s.length>max){ s=""; for(const x of p){ if((s+" "+x).length>max-1){ s+=" …"; break; } s+=(s?" ":"")+x; } }
   return s;
 }
-function sysSlot(f,a,fb,lo){                                      /* return addr, saved rbp, stack canary, or not used */
+/* ---------- arrays in the cards view: one box per element, [0] [1] [2] above, ↑i ↑k under the ones being indexed ---------- */
+const ARRMAX=16;                                                 /* boxes drawn per array, then "+N more" */
+const IDXN=new Set(["i","j","k","l","r","lo","hi","mid","left","right","slow","fast","read","write"]);   /* index names, when there's no .c */
+const bare=t=>(t||"").replace(/\b(?:const|volatile)\b/g,"").replace(/\s+/g," ").trim();
+function arrSlots(v,full){                                       /* {n, w, el, parts} for an array drawn box by box, or null to keep it as text */
+  if(v.kind!=="other"||!v.bytes||!v.size) return null;
+  const m=(v.type||"").match(/^(.*?)\s*\[(\d+)\]\s*$/); if(!m||!+m[2]) return null;
+  const n=+m[2], w=v.size/n, el=m[1].trim(), chr=/char/.test(el)&&w===1;
+  if(chr&&v.init===false) return null;                           /* a char buffer not set yet: ?? as before */
+  const parts=arrParts(v.type,v.size,full||chr?v.bytes:v.bytes.slice(0,ARRMAX*w*2)); if(!parts) return null;
+  if(chr&&parts.length===1&&/^"/.test(parts[0])) return null;     /* it looks like a string: stays text */
+  return {n,w,el,parts};
+}
+function arrGeo(A,cw,name,type,minW){                            /* where things sit in the box, from its left edge */
+  const shown=Math.min(A.n,ARRMAX), more=A.n-shown, x0=11, right=x0+shown*cw;
+  const moreW=more?Math.ceil(6.9*`+${more} more`.length+14):0, moreL=right+4, endL=(more?moreL+moreW:right)+4, endW=Math.max(24,cw);
+  const head=11+7.6*name.length+14+6.9*type.length+8;           /* the name and the type both fit on top */
+  return {cw,n:A.n,shown,more,x0,moreL,moreW,endL,endW,ew:A.w,w:Math.ceil(Math.max(minW,head,endL+endW+8))};
+}
+const slotX=(g,k)=>k<g.shown?g.x0+k*g.cw+g.cw/2:k<g.n?g.moreL+g.moreW/2:g.endL+g.endW/2;   /* a slot's centre; n is one past the end */
+function viewBase(u,v,w){                                        /* u is the array v itself (0), or a pointer into it: the slot u[0] is, else null */
+  if(u.addr===v.addr&&u.kind==="other"&&u.type===v.type) return 0;
+  if(u.kind!=="ptr"||u.init===false||!u.value||bare(u.target)!==bare(elemOf(v.type))) return null;
+  const off=u.value-v.addr;
+  return off>=0&&off<=v.size&&off%w===0?off/w:null;
+}
+let IDXSRC=null;
+function srcIndexes(){                                           /* function -> name -> the ints the code uses as name[int] */
+  if(IDXSRC&&IDXSRC.src===SRC) return IDXSRC.map;
+  const map=new Map(), fns=fnOfLines(), TYPE=/\b(?:int|char|short|long|unsigned|signed|float|double|size_t|bool|_Bool|struct\s+\w+)\s*\**\s*$/;
+  (SRC||[]).forEach((_,l)=>{ const fn=fns[l]; if(!fn) return; const code=codeAt(l+1);
+    for(const m of code.matchAll(/(?<![\w.]|->)([A-Za-z_]\w*)\s*\[\s*(?:\+\+|--)?\s*([A-Za-z_]\w*)\s*(?:\+\+|--)?\s*(?:[-+]\s*\d+\s*)?\]/g)){
+      if(TYPE.test(code.slice(0,m.index))) continue;               /* int a[n]: a declaration, n is its length */
+      if(!map.has(fn)) map.set(fn,new Map()); const by=map.get(fn);
+      if(!by.has(m[1])) by.set(m[1],new Set()); by.get(m[1]).add(m[2]); } });
+  IDXSRC={src:SRC,map}; return map;
+}
+function arrMarks(s,fa,v,A){                                     /* the ints indexing array v on step s, from every function that can get to it */
+  const idx=SRC?srcIndexes():null, seen=new Set(), found=[], notes=[], cols=new Map();
+  s.frames.forEach(f=>{
+    if(f!==fa&&seen.has(f.func)) return; seen.add(f.func);         /* a recursive call: only the newest one */
+    const views=f.vars.map(u=>({x:u.name,base:viewBase(u,v,A.w)})).filter(x=>x.base!==null).sort((a,b)=>Math.abs(a.base)-Math.abs(b.base));
+    if(!views.length) return;
+    const got=new Set();
+    (idx?views:views.slice(0,1)).forEach(vw=>{
+      const names=idx?[...((idx.get(f.func)||new Map()).get(vw.x)||[])]:f.vars.filter(u=>IDXN.has(u.name)).map(u=>u.name);
+      names.forEach(nm=>{ const iv=f.vars.find(u=>u.name===nm&&u.kind==="int"); if(!iv||got.has(nm)) return; got.add(nm);
+        found.push({nm,fn:f.func,iv,via:vw.x,base:vw.base,slot:iv.init===false?null:vw.base+iv.value}); }); });
+  });
+  const fns={}, drawn=m=>m.slot!==null&&m.slot>=0&&m.slot<=A.n;
+  found.forEach(m=>{ if(drawn(m)) (fns[m.nm]=fns[m.nm]||new Set()).add(m.fn); });
+  found.forEach(m=>{ m.who=fns[m.nm]&&fns[m.nm].size>1?`${m.fn}'s ${m.nm}`:m.nm;  /* the same name drawn for two functions: say whose */
+    if(m.slot===null){ notes.push(`${m.fn}'s ${m.nm} isn't set yet, so it isn't drawn`); return; }
+    if(m.slot<0||m.slot>A.n){ notes.push(`${m.fn}'s ${m.nm} is ${m.iv.value}${m.base?` (${m.via} starts at [${m.base}], so that's [${m.slot}])`:""}: outside ${v.name}[0…${A.n-1}], so it isn't drawn`); return; }
+    if(!cols.has(m.slot)) cols.set(m.slot,[]); cols.get(m.slot).push(m); });
+  return {cols:[...cols.entries()].sort((a,b)=>a[0]-b[0]).map(([slot,names])=>({slot,names})),notes};
+}
+function intExpr(t,fr){                                          /* an index like 3, i, k-1, i+j, k++: its value before the line ran, or null */
+  const toks=t.match(/\+\+|--|[A-Za-z_]\w*|\d+|\S/g)||[]; let v=0, sign=1, want=true, pre=0;
+  for(const x of toks){
+    if(want&&(x==="++"||x==="--")){ pre=x==="++"?1:-1; continue; }
+    if(want){ let n; if(/^\d+$/.test(x)) n=+x; else { const u=fr.vars.find(u=>u.name===x&&u.kind==="int"); if(!u||u.init===false) return null; n=u.value+pre; }
+      v+=sign*n; want=false; pre=0; }
+    else if(x==="++"||x==="--") continue;                          /* k++ still reads the old k */
+    else if(x==="+"||x==="-"){ sign=x==="+"?1:-1; want=true; }
+    else return null;
+  }
+  return want?null:v;
+}
+function lineArr(v,w,RA){                                       /* what the line that just ran did to array v: slots it read, slots it wrote, or all of it */
+  const out={read:new Set(),write:new Set(),all:false}; if(!RA||!RA.fr||!SRC) return out;
+  const fr=RA.fr, code=codeAt(RA.line), base=x=>{ const u=fr.vars.find(u=>u.name===x); return u?viewBase(u,v,w):null; };
+  const OP=/^\s*(?:=(?!=)|[-+*\/%&|^]=|<<=|>>=|\+\+|--)/, mul=i=>{ const pre=code.slice(0,i);   /* a * b, or a declaration like int *p */
+    return /[)\]]\s*$/.test(pre)||(/\w\s*$/.test(pre)&&!/\b(?:return|case|sizeof)\s*$/.test(pre)); };
+  for(const m of code.matchAll(/(?<![\w.]|->)([A-Za-z_]\w*)\s*\[([^\[\]]*)\]/g)){              /* a[i], p[k-1] */
+    const b=base(m[1]), k=b===null?null:intExpr(m[2],fr); if(k===null) continue;
+    const pre=code.slice(0,m.index);
+    if(OP.test(code.slice(m.index+m[0].length))||/(?:\+\+|--)\s*$/.test(pre)) out.write.add(b+k); else out.read.add(b+k); }
+  for(const m of code.matchAll(/\*\s*\(\s*([A-Za-z_]\w*)\s*([-+][^()]*)\)/g)){                     /* *(a + i) */
+    if(mul(m.index)) continue;
+    const b=base(m[1]), k=b===null?null:intExpr("0"+m[2],fr); if(k===null) continue;
+    (OP.test(code.slice(m.index+m[0].length))?out.write:out.read).add(b+k); }
+  for(const m of code.matchAll(/\*\s*([A-Za-z_]\w*)/g)){                                      /* *p, *p++ = …, (*p)++ */
+    if(mul(m.index)) continue;
+    const b=base(m[1]); if(b===null) continue;
+    const rest=code.slice(m.index+m[0].length).replace(/^\s*(?:\+\+|--)/,"").replace(/^\s*\)/,"");
+    (OP.test(rest)?out.write:out.read).add(b); }
+  const lib=code.match(/\b(?:memset|memcpy|memmove|bzero|strcpy|strncpy|strcat|fgets|sprintf|snprintf)\s*\(\s*&?\s*([A-Za-z_]\w*)\s*[,)]/);
+  if(lib&&base(lib[1])!==null) out.all=true;                      /* memset(a, …) and friends write all of it */
+  return out;
+}
+function markArrInit(t){                                         /* v.eset[k] = 1 once element k is written; null when every element is */
+  let prev=new Map();
+  t.steps.forEach((s,i)=>{
+    const cur=new Map(), RA=i>0?ranAt(i):null, code=RA&&RA.fr?codeAt(RA.line):"";
+    s.frames.forEach(f=>f.vars.forEach(v=>{
+      const m=v.kind==="other"&&v.bytes&&(v.type||"").match(/^(.*?)\s*\[(\d+)\]\s*$/), n=m?+m[2]:0, w=n?v.size/n:0;
+      if(!n||w!==Math.round(w)) return;
+      const id=v.addr+"|"+f.func+"|"+v.name, old=prev.get(id);
+      let e=null;
+      if(v.init===false) e=new Uint8Array(n);
+      else if(old&&old.e&&SRC){                                   /* no .c: no way to tell which line wrote what, so it's all or nothing as before */
+        const L=RA&&!RA.call?lineArr(v,w,RA):null, B=hx(v.bytes), O=hx(old.bytes);
+        if(L&&(L.all||(RA.fr&&RA.fr.func===f.func&&new RegExp(`\\b[A-Za-z_]\\w*\\s+${v.name}\\s*\\[[^\\]]*\\]\\s*=\\s*[{"]`).test(code)))) e=null;   /* int a[] = {…}, memset(a, …) */
+        else { e=old.e.slice();
+          for(let k=0;k<n;k++) if(!e[k]&&((L&&L.write.has(k))||B.slice(k*w,(k+1)*w).some((x,j)=>x!==O[k*w+j]))) e[k]=1;
+          if(e.every(x=>x)) e=null; }
+      }
+      v.eset=e; cur.set(id,{e,bytes:v.bytes});
+    }));
+    prev=cur;
+  });
+}
+function stepBytes(st){                                          /* byte address -> its byte on this step, from every variable and frame */
+  if(st._bytes) return st._bytes;
+  const M=new Map();
+  st.frames.forEach(f=>{ if(f.frame_bytes){ const lo=f.lo??f.rsp; hx(f.frame_bytes).forEach((b,k)=>M.set(lo+k,b)); }
+    f.vars.forEach(v=>{ if(v.addr&&v.bytes) hx(v.bytes).forEach((b,k)=>M.set(v.addr+k,b)); }); });
+  Object.defineProperty(st,"_bytes",{value:M});                   /* not saved with the trace */
+  return M;
+}
+function elemText(el,b){                                         /* one element's bytes as the cards show it */
+  if(!b.length||b.length>8||/float|double/.test(el)) return null;
+  let x=le(b); if(/\*/.test(el)) return show(num(x));
+  if(!/unsigned/.test(el)&&x>=(1n<<BigInt(8*b.length-1))) x-=(1n<<BigInt(8*b.length));
+  return String(x);
+}
+let ARRP=null;
+function arrPrep(){                                              /* one box width per array and one height for the whole trace, so nothing jumps between steps */
+  if(ARRP&&ARRP.t===TRACE&&ARRP.src===SRC&&ARRP.simple===simple) return ARRP;
+  const cw=new Map(); let rows=0;
+  TRACE.steps.forEach(s=>s.frames.forEach(f=>f.vars.forEach(v=>{
+    const A=arrSlots(v); if(!A) return;
+    const M=arrMarks(s,f,v,A), shown=Math.min(A.n,ARRMAX), id=f.func+"|"+v.name+"|"+v.type;
+    let w=Math.max(30,6.9*(String(shown-1).length+2)+6);           /* [15] */
+    if(v.init!==false) A.parts.slice(0,shown).forEach((p,k)=>{ if(!v.eset||v.eset[k]) w=Math.max(w,7.8*p.length+12); });   /* leftovers show as ?? */
+    M.cols.forEach(c=>{ if(c.slot<shown) c.names.forEach(m=>{ w=Math.max(w,6.9*(1+Math.min(9,m.who.length))+12); });
+      rows=Math.max(rows,Math.min(3,c.names.length)); });
+    cw.set(id,Math.max(cw.get(id)||0,Math.min(96,Math.ceil(w))));
+  })));
+  return ARRP={t:TRACE,src:SRC,simple,cw,rows};
+}
+function sysSlot(f,a,fb,lo){                                     /* return addr, saved rbp, stack canary, or not used */
   if(a===f.rbp+8) return {name:"return addr",tip:"where this function returns to"};
   if(a===f.rbp) return {name:"saved rbp",tip:"the caller's frame pointer, saved when this function started"};
   const b=fb.slice(a-lo,a-lo+8);
@@ -1152,7 +1295,9 @@ function wordsHTML(){
 /* ---------- node cards view ---------- */
 function renderCards(s){
   const TT=touched(at), CH=TT.ch, R=reachable(s), inner=s.frames[0], RC=reach(s), CI=callInfo(s), RET=retInfo(s);
-  const LL=listLines(s), SLOTW=184, SLOTH=86, CW=218, STEP=236, FH=36, DIM=' opacity="0.22"';
+  const AP=arrPrep(), RAc=ranAt(at), PST=at>0?TRACE.steps[at-1]:null, varAt={};                 /* AP.rows: lines of ↑i marks an array needs */
+  s.frames.forEach(f=>f.vars.forEach(v=>{ if(v.addr) varAt[v.addr]=v; }));
+  const LL=listLines(s), SLOTW=184, SLOTH=86+AP.rows*14, CW=218, STEP=236, FH=36, DIM=' opacity="0.22"';
   const HOPC=["#BFDBFE","#93C5FD","#3B82F6","#1D4ED8"], hopc=d=>HOPC[Math.min(d,3)];          /* own, 1, 2, 3+ hops away */
   const EX=e=>` data-ex="${esc(e)}"`;                                                        /* hover it: its hops light up */
   const isNew=f=>at>0&&f===inner&&TRACE.steps[at-1].frames.length<s.frames.length;
@@ -1160,9 +1305,75 @@ function renderCards(s){
   const pw=Math.max(320,($("pic").clientWidth||1000)-20), zf=PZ==="fit"?null:+PZ/100;     /* the width you can see, in picture units */
   const vis=zf?pw/zf:pw/Math.max(0.8,Math.min(1,pw/980)), FROW=SLOTH+34+62;                /* frames and cards wrap at this width */
   o+=`<text x="16" y="21" font-size="15" font-weight="600" fill="${INK}">Stack<tspan dx="10" font-size="11.5" font-weight="400" fill="${MUT}">faded = not touched by this line</tspan></text>`;
+  const arrBox=(sl,f,bx,by)=>{                                    /* an array: a box per element, its index above, ↑i under the ones being indexed */
+    const v=sl.v, A=sl.A, g=sl.g, n=A.n, cw=g.cw, key="v:"+v.addr, el=elemOf(v.type), unset=v.init===false, B=hx(v.bytes);
+    const rc=RC[key], hd=RC._D?RC._D[key]:undefined, out=hd===undefined&&!!inner, M=arrMarks(s,f,v,A), LA=lineArr(v,A.w,RAc);
+    const whoA=(f===inner?"":f.func+"'s ")+v.name, code=RAc?codeAt(RAc.line):"", c0=by+37;
+    const ab={x0:bx+g.x0,cw,n,shown:g.shown,moreL:bx+g.moreL,moreW:g.moreW,endL:bx+g.endL,endW:g.endW,ew:A.w};   /* the same, on the page */
+    /* which elements this line changed: their bytes against the previous step's bytes at the same address */
+    const PB=PST?stepBytes(PST):null, pv=PST&&PST.frames.flatMap(x=>x.vars).find(u=>u.addr===v.addr&&u.name===v.name&&u.type===v.type);
+    const set=i=>!unset&&(!v.eset||!!v.eset[i]), wasSet=i=>!!pv&&pv.init!==false&&(!pv.eset||!!pv.eset[i]);   /* written yet, now and a step ago */
+    const was=i=>{ if(!PB) return undefined; const b=[]; for(let j=0;j<A.w;j++){ const x=PB.get(v.addr+i*A.w+j); if(x===undefined) return undefined; b.push(x); } return b; };
+    const changed=new Set();                                      /* set by this line, or its bytes differ from the step before */
+    if(PB) for(let i=0;i<n;i++){ if(!set(i)) continue; const b=was(i); if((pv&&!wasSet(i))||(b&&b.some((x,j)=>x!==B[i*A.w+j]))) changed.add(i); }
+    const wasTxt=i=>{ if(!wasSet(i)) return "??"; const b=was(i); return b?elemText(el,b):null; };
+    const rd=new Set([...LA.read,...LA.write]);                   /* used by this line, or where a pointer it changed now leads */
+    s.frames.forEach(fr=>fr.vars.forEach(u=>{ if(u.kind==="ptr"&&CH.has("v:"+u.addr)){ const b=viewBase(u,v,A.w); if(b!==null) rd.add(b); } }));   /* n: the end box */
+    const whole=!!(RAc&&RAc.fr&&RAc.fr.vars.some(u=>u.addr===v.addr&&u.name===v.name))&&new RegExp(`(?<![\\w.]|->)${v.name}\\b(?!\\s*\\[)`).test(code);   /* used as a whole, like f(nums) */
+    const mch=M.cols.some(c=>c.names.some(m=>CH.has("v:"+m.iv.addr)));          /* an index moved */
+    const I=TT.inv.has(key)&&whole, F=TT.on&&!I&&!changed.size&&!rd.size&&!mch, endHot=rd.has(n);
+    const mDesc=m=>`${m.fn}'s ${m.nm} is ${m.iv.value}: `+(m.slot===n?`one past the end (${v.name}[${n}] isn't part of the array)`
+      :m.fn===f.func&&m.via===v.name?`${v.name}[${m.nm}] is ${v.name}[${m.slot}]`:`${m.fn}'s ${m.via}[${m.nm}] is ${whoA}[${m.slot}]`);
+    const colAt=c=>M.cols.find(x=>x.slot===c), notes=M.notes.length?"\n"+M.notes.join("\n"):"";
+    const marks=M.cols.length?"\nindexing it now:\n"+M.cols.flatMap(c=>c.names).map(mDesc).join("\n"):"";
+    const role=`\n${v.arg?"parameter":"local"} of ${f.func}${v.decl?`, declared on line ${v.decl}`:""}`+(out?`\n${inner.func} can't reach this box`:"")+(v.addr?libTip(s,v.addr,v.size||8):"");
+    pos[key]={x:bx+sl.w/2,y:by+SLOTH,C:false,I,F,who:whoA,arr:ab};
+    let h=`<g data-box="${key}" data-lad="${v.addr}|${esc(f.func)}|${esc(v.name)}" data-tip="${esc(`${v.name} (${v.type}): ${n} element${n===1?"":"s"} of ${A.w} byte${A.w===1?"":"s"}`+role+"\nreal address "+real(v.addr)+(unset?"\nnot set yet: leftover bytes":v.eset?"\n?? = not set yet: leftover bytes":"")+marks+notes+reachTip(rc,inner?inner.func:"").replace(/\nchange it: .*/,""))}"${F?DIM:""}>`+
+      `<rect x="${bx}" y="${by}" width="${sl.w}" height="${SLOTH}" rx="8" fill="${out?"#F1F3F5":"#fff"}" stroke="${I?INK:BORDER}" stroke-width="${I?2.2:1}"/>`+
+      (hd!==undefined?`<rect x="${bx+2}" y="${by+7}" width="4" height="${SLOTH-14}" rx="2" fill="${hopc(hd)}"/>`:"")+
+      `<text x="${bx+11}" y="${by+17}" font-size="12.5" font-weight="700" fill="${INK}" ${MONO}>${esc(v.name)}</text>`+
+      `<text x="${bx+sl.w-8}" y="${by+17}" font-size="10" text-anchor="end" fill="${MUT}">${esc(v.type)}</text>`;
+    let cells="", hot="";
+    for(let i=0;i<g.shown;i++){
+      const cx=ab.x0+i*cw, a=v.addr+i*A.w, t0=set(i)?(A.parts[i]??"?"):"??", C=changed.has(i), Rd=!C&&rd.has(i), mc=Math.max(1,Math.floor((cw-6)/7.8));
+      const t=t0.length>mc?t0.slice(0,mc-1)+"…":t0, w0=C?wasTxt(i):null, here=colAt(i);
+      const tip=`${whoA}[${i}] = ${t0}  (${el})\nat ${show(a)}${simple?`, real ${real(a)}`:""}`+(C?`\nchanged by this line${w0!=null?`: it was ${w0}`:""}`:Rd?"\nused by this line":"")+
+        (here?"\n"+here.names.map(mDesc).join("\n"):"")+notes;
+      const c=`<g data-tip="${esc(tip)}"><rect x="${cx}" y="${c0}" width="${cw}" height="24" rx="2" fill="${C?AMBG:set(i)?"#fff":"#F8FAFC"}" stroke="${C?AMB:Rd?INK:BORDER}" stroke-width="${C||Rd?2:1}"/>`+
+        `<text x="${cx+cw/2}" y="${c0+16.5}" font-size="13" font-weight="700" text-anchor="middle" fill="${C?AMB:set(i)?INK:MUT}" ${MONO}>${C?`<tspan class="pop">${esc(t)}</tspan>`:esc(t)}</text></g>`;
+      if(C||Rd) hot+=c; else cells+=c;                             /* outlined ones on top, so their whole border shows */
+      h+=`<text x="${cx+cw/2}" y="${by+32}" font-size="11.5" text-anchor="middle" fill="${MUT}" ${MONO}>[${i}]</text>`;
+    }
+    h+=cells+hot;
+    if(g.more){                                                   /* past 16: one box for the rest */
+      const hid=[...changed].filter(i=>i>=g.shown), hrd=[...rd].some(i=>i>=g.shown&&i<n), hm=M.cols.filter(c=>c.slot>=g.shown&&c.slot<n), all=unset?null:arrParts(v.type,v.size,v.bytes);
+      const vals=all?all.slice(g.shown).map((x,j)=>set(g.shown+j)?x:"??").join(" "):"??";
+      h+=`<g data-tip="${esc(`${whoA}[${g.shown}…${n-1}]: ${vals.length>160?vals.slice(0,159)+"…":vals}`+(hid.length?`\nchanged by this line: ${hid.slice(0,12).map(i=>`[${i}]`).join(" ")}${hid.length>12?" …":""}`:"")+hm.flatMap(c=>c.names).map(m=>"\n"+mDesc(m)).join(""))}">`+
+        `<rect x="${ab.moreL}" y="${c0}" width="${g.moreW}" height="24" rx="4" fill="${hid.length?AMBG:PNL}" stroke="${hid.length?AMB:hrd?INK:BORDER}" stroke-width="${hid.length||hrd?2:1}" stroke-dasharray="4 3"/>`+
+        `<text x="${ab.moreL+g.moreW/2}" y="${c0+16}" font-size="11.5" font-weight="600" text-anchor="middle" fill="${hid.length?AMB:MUT}">+${g.more} more</text></g>`;
+    }
+    const endM=colAt(n), endP=s.frames.some(fr=>fr.vars.some(u=>u.kind==="ptr"&&u.init!==false&&u.value===v.addr+v.size&&bare(u.target)===bare(el)&&!(varAt[u.value]&&bare(varAt[u.value].type)===bare(el))));
+    if(endM||endP)                                                /* one past the end: something points or indexes here */
+      h+=`<g data-tip="${esc(`one past the end of ${whoA}: ${v.name}[${n}] isn't part of the array, so reading or writing it is a bug`+(endM?"\n"+endM.names.map(mDesc).join("\n"):""))}">`+
+        `<text x="${ab.endL+g.endW/2}" y="${by+32}" font-size="11.5" font-style="italic" text-anchor="middle" fill="${FAINT}">end</text>`+
+        `<rect x="${ab.endL}" y="${c0}" width="${g.endW}" height="24" rx="2" fill="none" stroke="${endHot?INK:DEAD}" stroke-width="${endHot?1.6:1}" stroke-dasharray="3 3"/></g>`;
+    M.cols.forEach(c=>{                                           /* ↑i under its slot; more names stack below it */
+      const x=slotX(ab,c.slot)-3.5, list=c.names.length>3?c.names.slice(0,2):c.names, hidden=c.slot>=g.shown&&c.slot<n;
+      let t="";
+      list.forEach((m,r)=>{ const col=CH.has("v:"+m.iv.addr)?AMB:fcol(m.fn)[0];
+        t+=`<text x="${r?x+6.9:x}" y="${by+76+r*14}" font-size="11.5" font-weight="700" fill="${col}" ${MONO}>${r?"":"↑"}${esc(m.who)}${hidden?` [${c.slot}]`:""}</text>`; });
+      if(c.names.length>3) t+=`<text x="${x+6.9}" y="${by+76+2*14}" font-size="11.5" font-weight="700" fill="${MUT}" ${MONO}>+${c.names.length-2}</text>`;
+      h+=`<g data-tip="${esc(c.names.map(mDesc).join("\n"))}">${t}</g>`;
+    });
+    h+=(out?`<text x="${bx+11}" y="${by+SLOTH-8}" font-size="10" font-style="italic" fill="${MUT}">not reachable from here</text>`
+         :rc&&rc.v!==v.name?`<text x="${bx+11}" y="${by+SLOTH-8}" font-size="11" font-weight="700" fill="${REACH}" ${MONO}${EX(rc.v)}>= ${esc(rc.v)}</text>`:"")+
+      `<text class="hov" x="${bx+sl.w-8}" y="${by+SLOTH-8}" font-size="10" text-anchor="end" fill="${MUT}" ${MONO}>at ${show(v.addr)}${v.decl?` · line ${v.decl}`:""}</text></g>`;
+    return h;
+  };
   [...s.frames].reverse().forEach(f=>{                           /* address order: main's frame on the left */
     const vars=[...f.vars].sort((a,b)=>(b.addr||0)-(a.addr||0));
-    let slots=vars.map(v=>({v,addr:v.addr||0,w:SLOTW}));
+    let slots=vars.map(v=>{ const A=arrSlots(v); if(!A) return {v,addr:v.addr||0,w:SLOTW};   /* an array gets one box per element */
+      const g=arrGeo(A,AP.cw.get(f.func+"|"+v.name+"|"+v.type)||30,v.name,v.type,SLOTW); return {v,addr:v.addr||0,w:g.w,A,g}; });
     if(FRAMEINT&&f.rbp&&f.frame_bytes){                            /* the rest of the frame: return address, saved rbp, unused slots */
       const fb=hx(f.frame_bytes), lo=f.lo??f.rsp, hi=f.rbp+16, cover=new Set();
       vars.forEach(v=>{ if(v.addr) for(let a=v.addr;a<v.addr+(v.size||8);a++) cover.add(a); });
@@ -1197,10 +1408,12 @@ function renderCards(s){
           `<text class="hov" x="${bx+9}" y="${by+58}" font-size="10" fill="${FAINT}" ${MONO}>at ${show(e.addr)}</text></g>`;
         return;
       }
+      if(sl.A){ o+=arrBox(sl,f,bx,by); return; }
       const v=sl.v, SLOTW2=sl.w, key="v:"+v.addr, C=CH.has(key), I=!C&&TT.inv.has(key), F=TT.on&&!C&&!I, rc=RC[key], ci=CI[key], hd=RC._D?RC._D[key]:undefined, out=hd===undefined&&!!inner;
       const role=`\n${v.arg?"parameter":"local"} of ${f.func}${v.decl?`, declared on line ${v.decl}`:""}`+(ci?`\n${ci.text}`:"")+(out?`\n${inner.func} can't reach this box`:"")+(v.addr?libTip(s,v.addr,v.size||8):"");
       const val=v.init===false?"??":v.kind==="int"?String(v.value):v.kind==="other"?(arrText(v.type,v.size,v.bytes,22)||"—"):(v.value===null?"—":show(v.value));   /* ?? only means: not set yet */
       pos[key]={x:bx+SLOTW2/2,y:by+SLOTH,C,I,F,who:(f===inner?"":f.func+"'s ")+v.name};
+      if(v.kind==="other"&&/^"/.test(val)) pos[key].txt={x0:bx+11,ch:0.6*(val.length>10?12:15),len:val.length};   /* a string: a pointer lands on its char */
       o+=`<g data-box="${key}" data-lad="${v.addr}|${esc(f.func)}|${esc(v.name)}" data-tip="${esc(v.name+" ("+v.type+")"+role+"\nreal address "+real(v.addr)+"\nvalue "+(v.value===null?"??":real(v.value))+(v.init===false?"\nnot set yet: leftover bytes":"")+reachTip(rc,inner.func))}"${F?DIM:""}>`+
         `<rect x="${bx}" y="${by}" width="${SLOTW2}" height="${SLOTH}" rx="8" fill="${C?AMBG:out?"#F1F3F5":"#fff"}" stroke="${C?AMB:I?INK:BORDER}" stroke-width="${C||I?2.2:1}"/>`+
         (hd!==undefined?`<rect x="${bx+2}" y="${by+7}" width="4" height="${SLOTH-14}" rx="2" fill="${hopc(hd)}"/>`:"")+
@@ -1226,7 +1439,7 @@ function renderCards(s){
     }
     x+=w+14; xmax=Math.max(xmax,x);
   });
-  const HY=y-34+276+18*LL.length;                                  /* the heap starts under the last row of frames */
+  const HY=y-34+276+(SLOTH-86)+18*LL.length;                                  /* the heap starts under the last row of frames */
   /* heap cards, in address order */
   const own=new Set(s.heap.map(n=>n.addr));
   const hid=FOLD?s.heap.filter(n=>n.freed||!R.has(n.addr)):[], hset=new Set(hid.map(n=>n.addr));
@@ -1374,11 +1587,24 @@ function renderCards(s){
     const ly=sp.y+30+(li++%3)*18, lx=sp.x+(t-sp.x)*((ly-sp.y)/(ty-sp.y));
     labels+=label(tf?`${sp.who} ${sp.C?"now points":"points"} to a freed block`:sp.C?`${sp.who} now points to ${show(v.value)}`:`${sp.who} is how we reach ${show(v.value)}`,lx,ly,col);
   });
+  const LAND={};
+  const intoArray=v=>{                                            /* a pointer into an array: the x of the slot (or char) it points at */
+    const T=bare(v.target);
+    for(const fr of s.frames) for(const A of fr.vars){
+      const tp=A.addr&&A!==v&&pos["v:"+A.addr]; if(!tp||!(tp.arr||tp.txt)||bare(elemOf(A.type))!==T) continue;
+      const off=v.value-A.addr; if(off<0||off>A.size) continue;
+      if(off===A.size&&varAt[v.value]&&bare(varAt[v.value].type)===T) continue;            /* the variable right after it */
+      if(tp.txt) return {tp,x:tp.txt.x0+Math.min(tp.txt.len-0.5,1.5+off)*tp.txt.ch};
+      const k=Math.floor(off/tp.arr.ew), lk=A.addr+":"+k, j=LAND[lk]=(LAND[lk]??-1)+1;  /* (p - array) / element size; n = one past the end */
+      return {tp,x:slotX(tp.arr,k)+(j%2?1:-1)*Math.ceil(j/2)*5};                           /* two pointers to one slot: side by side */
+    }
+    return null; };
   s.frames.forEach(f=>f.vars.forEach(v=>{
     if(v.kind!=="ptr"||v.init===false||!v.value||!pos["v:"+v.addr]) return;
-    const sp=pos["v:"+v.addr], col=sp.C?AMB:sp.I?INK:MUT, mk=sp.C?"a":sp.I?"k":"g", tv=stackAt[v.value];
+    const sp=pos["v:"+v.addr], col=sp.C?AMB:sp.I?INK:MUT, mk=sp.C?"a":sp.I?"k":"g", tv=stackAt[v.value], ia=intoArray(v);
     let d="", st="";
-    if(tv&&tv!==v&&(!v.target||v.target===tv.type||v.target===elemOf(tv.type))&&pos["v:"+tv.addr]){   /* to another variable, or an array's start */
+    if(ia){ const tp=ia.tp; d=`M${sp.x},${sp.y} C${sp.x},${sp.y+44} ${ia.x},${tp.y+44} ${ia.x},${tp.y+3}`; }   /* lands under its slot */
+    else if(tv&&tv!==v&&(!v.target||v.target===tv.type||v.target===elemOf(tv.type))&&pos["v:"+tv.addr]){   /* to another variable, or an array's start */
       const tp=pos["v:"+tv.addr], tx=tp.x-34; d=`M${sp.x},${sp.y} C${sp.x},${sp.y+44} ${tx},${tp.y+44} ${tx},${tp.y+3}`;   /* lands left of centre, clear of its own arrow */
       st=star("v:"+tv.addr,tx-6,tp.y+17,"end",sp.F);
     } else { const b=blockOf(v.value), f=b&&(b.fields||[]).find(f=>b.addr+f.offset===v.value);   /* into a node's field */
@@ -1390,7 +1616,7 @@ function renderCards(s){
     labels+=st;
   }));
   Object.entries(CI).forEach(([k,ci])=>{ const tp=pos[k], sp=ci.src&&pos["v:"+ci.src.addr]; if(!tp||!sp) return;
-    const sx=sp.x+34, tx=tp.x+34;
+    const sx=sp.arr?slotX(sp.arr,0)+Math.min(10,sp.arr.cw/3):sp.x+34, tx=tp.x+34;            /* an array passes &a[0] */
     arrows+=`<path d="M${sx},${sp.y} C${sx},${sp.y+30} ${tx},${tp.y+30} ${tx},${tp.y+3}" fill="none" stroke="${AMB}" stroke-width="1.6" stroke-dasharray="4 3" marker-end="url(#ma)"/>`; });
   if(RET){                                                        /* what just came back from the call, and where it's going */
     const rp=RET.recv&&pos["v:"+RET.recv.addr];
@@ -1654,12 +1880,12 @@ function loadTrace(txt){
       fields:[{name:"val",type:"int",kind:"int",value:n.val},{name:"next",type:"ptr",kind:"ptr",value:n.next}]});
     (st.frames||[]).forEach(fr=>(fr.vars||[]).forEach(v=>{ if(v.struct===undefined) v.struct=v.node_ptr?"struct":null; }));
   });
-  markAllocator(TRACE); markHeapSteps(TRACE); markInit(TRACE); frameColors(TRACE); EXNAMES=null; markBugs(TRACE); WATCH.forEach(w=>w.vals=null); EXNAMES=null; EXC=new Map(); RCACHE.clear(); at=0; buildMap(TRACE);
+  markAllocator(TRACE); markHeapSteps(TRACE); markInit(TRACE); markArrInit(TRACE); frameColors(TRACE); EXNAMES=null; markBugs(TRACE); WATCH.forEach(w=>w.vals=null); EXNAMES=null; EXC=new Map(); RCACHE.clear(); at=0; buildMap(TRACE);
   try{ const v=+localStorage.getItem(posKey()); if(v>0&&v<TRACE.steps.length) at=v; }catch(e){}          /* back where you were */
   $("drop").style.display="none"; $("main").style.display="grid";
   $("slider").max=TRACE.steps.length-1; draw();
 }
-function setSrc(t){ SRC=t.split("\n"); FNL=null; EXC=new Map(); if(TRACE){ markInit(TRACE); markBugs(TRACE); WATCH.forEach(w=>w.vals=null); draw(); } }
+function setSrc(t){ SRC=t.split("\n"); FNL=null; EXC=new Map(); if(TRACE){ markInit(TRACE); markArrInit(TRACE); markBugs(TRACE); WATCH.forEach(w=>w.vals=null); draw(); } }
 function readFile(f,cb){ const r=new FileReader(); r.onload=()=>cb(r.result); r.readAsText(f); }
 $("openT").onclick=()=>$("fT").click(); $("openC").onclick=()=>$("fC").click();
 $("fT").onchange=e=>readFile(e.target.files[0],loadTrace);
