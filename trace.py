@@ -8,8 +8,11 @@ FRAME_MAX = 512                        # most bytes of one stack frame to record
 STDOUT    = "prog_stdout.txt"
 WATCH_MAX = 4                          # x86-64 CPUs have 4 hardware watchpoints, 8 bytes each
 
-steps, KNOWN, FREED = [], {}, set()   # KNOWN: addr -> struct name
+ARR_BYTES = 2048                       # most bytes of one heap array to record
+steps, KNOWN, FREED = [], {}, set()   # KNOWN: addr -> ("struct", name) or ("array", element type, element size)
 ALLOCED = set()                        # every address malloc/calloc/realloc handed to the program
+REQ, HOW, COPIED = {}, {}, {}          # addr -> bytes asked for, which call gave it, bytes realloc carried over
+ROOTS = []                             # (value, what it points to) for every pointer variable on this step
 FREE_ORDER = []                        # addresses in the order free() got them, newest last
 LIBCALLS = []                          # library calls since the last snapshot, and what the watchpoints caught
 WPS = []                               # the watchpoints armed right now
@@ -32,17 +35,27 @@ def raw(addr, size):
 
 # ---- watch the allocator, without stopping ----
 class MallocRet(gdb.FinishBreakpoint):
-    def __init__(self, frame): super().__init__(frame, internal=True)
+    def __init__(self, frame, func, size, old):
+        super().__init__(frame, internal=True)
+        self.func, self.size, self.old = func, size, old
     def stop(self):
         try:
             a = int(gdb.parse_and_eval("$rax"))                  # the address it just returned
             FREED.discard(a); ALLOCED.add(a)
+            if a:
+                COPIED[a] = min(REQ.get(self.old, 0), self.size) if self.old else 0   # before REQ changes: realloc may grow in place
+                REQ[a], HOW[a] = self.size, self.func
+                if self.old and self.old != a: FREED.add(self.old)   # realloc moved it: the old block is gone
         except Exception: pass
         return False
 class Malloc(gdb.Breakpoint):                     # malloc, calloc and realloc all hand out blocks
-    def __init__(self, fn="malloc"): super().__init__(fn, internal=True)
+    def __init__(self, fn="malloc"):
+        super().__init__(fn, internal=True); self.fn = fn
     def stop(self):
-        try: MallocRet(gdb.newest_frame())
+        try:
+            a, b = reg("rdi"), reg("rsi")                        # the size you asked for
+            size = {"malloc": a, "calloc": a * b, "realloc": b}[self.fn]
+            MallocRet(gdb.newest_frame(), self.fn, size, a if self.fn == "realloc" else 0)
         except Exception: pass
         return False
 class Free(gdb.Breakpoint):
@@ -155,6 +168,28 @@ def lib_calls():
         m = re.search(r"\bcall\b.*<([\w.]+)@plt>", ins["asm"])
         if m: yield ins["addr"], re.sub(r"^__isoc99_", "", m.group(1)), gdb.find_pc_line(ins["addr"]).line
 
+def ptr_desc(t):
+    """what a pointer of type t leads to: ("struct", name), ("array", element type, element size) for int, char ...,
+       or None (void *, function pointers, pointers to pointers)"""
+    try:
+        t = t.strip_typedefs()
+        if t.code != gdb.TYPE_CODE_PTR: return None
+        tgt = t.target().strip_typedefs()
+        if tgt.code == gdb.TYPE_CODE_STRUCT: return ("struct", str(tgt))
+        if scalar(tgt) and tgt.sizeof in (1, 2, 4, 8): return ("array", str(tgt.unqualified()), tgt.sizeof)
+    except gdb.error: pass
+    return None
+
+def read_array(addr, elem, esize):
+    """a malloc'd block of ints or chars: the bytes you asked for, and the ones past its end up to the next chunk's header"""
+    csz = chunk_size(addr)
+    req = REQ.get(addr, max(0, csz - 8))                     # not seen being allocated: all of its usable bytes
+    out = {"addr": addr, "type": "%s [%d]" % (elem, req // esize), "kind": "array", "elem": elem, "esize": esize, "fields": [], "freed": False,
+           "size": req, "bytes": raw(addr, min(req, ARR_BYTES)), "header": raw(addr - 16, 16), "how": HOW.get(addr, "malloc")}
+    if COPIED.get(addr): out["copied"] = COPIED[addr]
+    if req <= ARR_BYTES and csz > req: out["slack"] = raw(addr + req, csz - req)   # up to and including the next header
+    return out
+
 def read_block(addr, stname):
     t = gdb.lookup_type(stname)
     v = gdb.Value(addr).cast(t.pointer()).dereference()
@@ -200,6 +235,8 @@ def collect_vars(frame):
                             "arg": bool(sym.is_argument),      # parameters start with real values
                             "target": str(t.strip_typedefs().target()) if is_ptr(t) else None,   # one star down
                             "decl": sym.line})                 # the line it was declared on
+                d = ptr_desc(t)
+                if d and is_ptr(t): ROOTS.append((int(v), d))
             except gdb.error: pass
         if block.function: break
         block = block.superblock
@@ -224,24 +261,42 @@ def returned(name):
         return {"func": name, "type": str(rt), "value": int(gdb.parse_and_eval("$rax").cast(rt))}
     except (gdb.error, AttributeError, TypeError, RuntimeError): return None
 
-def discover(vars_, real=lambda a: True):
-    """remember every block reachable from these variables, following all pointer fields;
-       real(addr) says whether a real block starts there, so leftover pointers can't invent one"""
-    queue = [(v["value"], v["struct"]) for v in vars_ if v["struct"] and v["value"]]
-    while queue and len(KNOWN) < NODE_MAX:
-        addr, stname = queue.pop(0)
-        if not addr or addr in KNOWN or addr in FREED or not real(addr): continue
-        try: b = read_block(addr, stname)
+def field_descs(stname):
+    """field name -> what that pointer field leads to"""
+    try: return {f.name: ptr_desc(f.type) for f in gdb.lookup_type(stname).fields() if f.name}
+    except gdb.error: return {}
+
+def discover(roots, starts, locals_):
+    """remember every block reachable from these pointers, following each pointer field by its own type.
+       Structs first, then int and char arrays, so a struct is never read as an array of its first field.
+       starts: where real malloc'd blocks start (None if the memory map can't be read), so leftover pointers can't invent one"""
+    real = lambda a: starts is None or a in starts or a in locals_
+    queue = [r for r in roots if r[1][0] == "struct"]
+    arrays = [r for r in roots if r[1][0] == "array"]
+    seen = set()
+    while queue:
+        addr, d = queue.pop(0)
+        if not addr or addr in seen or addr in FREED: continue
+        if addr in KNOWN: d = KNOWN[addr]                      # known already: still follow its fields, they may be new
+        elif len(KNOWN) >= NODE_MAX or not real(addr): continue
+        if d[0] != "struct": continue
+        seen.add(addr)
+        try: b = read_block(addr, d[1])
         except gdb.error: continue
-        KNOWN[addr] = stname
+        KNOWN[addr] = d
+        fd = field_descs(d[1])
         for f in b["fields"]:
-            if f["kind"] == "ptr" and f["value"]: queue.append((f["value"], stname))
+            fk = fd.get(f["name"])
+            if f["kind"] == "ptr" and f["value"] and fk: (queue if fk[0] == "struct" else arrays).append((f["value"], fk))
+    for addr, d in arrays:                                   # an int * or char * at the start of a used chunk
+        if len(KNOWN) >= NODE_MAX: break
+        if addr and addr not in KNOWN and addr not in FREED and starts and addr in starts: KNOWN[addr] = d
 
 def heap_now():
     """every block we have ever seen — freed ones too, with their bytes as they are now"""
     out = []
-    for addr, stname in KNOWN.items():
-        try: b = read_block(addr, stname)
+    for addr, d in KNOWN.items():
+        try: b = read_block(addr, d[1]) if d[0] == "struct" else read_array(addr, d[1], d[2])
         except gdb.error: continue
         b["freed"] = addr in FREED
         out.append(b)
@@ -294,7 +349,33 @@ def console():
         with open(STDOUT) as fh: return fh.read()
     except IOError: return ""
 
+def maps_of(a):
+    """(permissions, path) of the memory mapping that holds address a"""
+    try:
+        with open("/proc/%d/maps" % gdb.selected_inferior().pid) as fh:
+            for line in fh:
+                p = line.split(); lo, hi = (int(x, 16) for x in p[0].split("-"))
+                if lo <= a < hi: return p[1], (p[5] if len(p) > 5 else "")
+    except (IOError, ValueError): pass
+    return None
+
+def literal(a):
+    """a char * into the program file (a string literal or a global): its text, up to 64 bytes"""
+    m = maps_of(a)
+    if not m or not m[1].startswith("/"): return None          # the stack, the heap, or anonymous memory
+    try: b = bytes(gdb.selected_inferior().read_memory(a, 64))
+    except gdb.error:
+        b = b""
+        for k in range(64):
+            try: b += bytes(gdb.selected_inferior().read_memory(a + k, 1))
+            except gdb.error: break
+    end = b.find(b"\0")
+    out = {"cstr": (b if end < 0 else b[:end]).decode("latin-1"), "cstr_ro": "w" not in m[0]}
+    if end < 0: out["cstr_cut"] = True
+    return out
+
 def snapshot():
+    del ROOTS[:]
     frame = gdb.selected_frame(); sal = frame.find_sal()
     frames, f = [], frame
     while f:
@@ -308,8 +389,13 @@ def snapshot():
     starts = {c["addr"] for c in chunks if c["state"] == "used"}       # where real malloc'd blocks start
     locals_ = {v["addr"] for fr in frames for v in fr["vars"]            # structs living on the stack
                if v["kind"] == "other" and v["type"].startswith("struct ") and "[" not in v["type"]}
-    real = (lambda a: a in starts or a in locals_) if chunks else (lambda a: True)
-    for fr in frames: discover(fr["vars"], real)
+    seen_heap = chunks or maps_of(int(frame.read_register("rsp")))   # no heap yet: then only structs on the stack can be blocks
+    discover(ROOTS, starts if seen_heap else None, locals_)
+    for fr in frames:                                          # char * to a string literal: its text
+        for v in fr["vars"]:
+            if v["kind"] == "ptr" and v["value"] and re.sub(r"\b(const|volatile)\b", "", v["target"] or "").strip() in ("char", "signed char", "unsigned char"):
+                lit = literal(v["value"])
+                if lit: v.update(lit)
     ret = None
     if steps and len(frames) < len(steps[-1]["frames"]):           # a function just returned
         ret = returned(steps[-1]["frames"][0]["func"])
