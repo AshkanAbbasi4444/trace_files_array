@@ -2,8 +2,8 @@ import gdb, json, os, re
 
 START     = "main"
 MAX_STEPS = 4000
-NODE_MAX  = 64
-CHUNK_MAX = 200
+NODE_MAX  = 256
+CHUNK_MAX = 400
 FRAME_MAX = 512                        # most bytes of one stack frame to record
 STDOUT    = "prog_stdout.txt"
 WATCH_MAX = 4                          # x86-64 CPUs have 4 hardware watchpoints, 8 bytes each
@@ -170,15 +170,21 @@ def lib_calls():
 
 def ptr_desc(t):
     """what a pointer of type t leads to: ("struct", name), ("array", element type, element size) for int, char ...,
-       or None (void *, function pointers, pointers to pointers)"""
+       ("array", "int *", 8, what each element leads to) for int **, char **, struct X **, or None (void *, function pointers)"""
     try:
         t = t.strip_typedefs()
         if t.code != gdb.TYPE_CODE_PTR: return None
         tgt = t.target().strip_typedefs()
         if tgt.code == gdb.TYPE_CODE_STRUCT: return ("struct", str(tgt))
         if scalar(tgt) and tgt.sizeof in (1, 2, 4, 8): return ("array", str(tgt.unqualified()), tgt.sizeof)
+        if tgt.code == gdb.TYPE_CODE_PTR: return ("array", str(t.target().strip_typedefs().unqualified()), 8, ptr_desc(tgt))   # a pointer array
     except gdb.error: pass
     return None
+
+def words(addr, n):
+    """the n 8-byte pointers stored at addr"""
+    b = raw(addr, n * 8)
+    return [int.from_bytes(bytes.fromhex(b[k * 16:k * 16 + 16]), "little") for k in range(n)] if b else []
 
 def read_array(addr, elem, esize):
     """a malloc'd block of ints or chars: the bytes you asked for, and the ones past its end up to the next chunk's header"""
@@ -237,6 +243,18 @@ def collect_vars(frame):
                             "decl": sym.line})                 # the line it was declared on
                 d = ptr_desc(t)
                 if d and is_ptr(t): ROOTS.append((int(v), d))
+                at = t.strip_typedefs()
+                if at.code == gdb.TYPE_CODE_ARRAY:
+                    et = at.target().strip_typedefs(); ed = ptr_desc(et)
+                    if ed and et.code == gdb.TYPE_CODE_PTR:            # int *ps[3]: each element can lead to a heap block
+                        for k in range(min(at.sizeof // 8, 64)): ROOTS.append((int(v[k]), ed))
+                    base = at
+                    while base.code == gdb.TYPE_CODE_ARRAY: base = base.target().strip_typedefs()
+                    if base.code == gdb.TYPE_CODE_STRUCT:                # struct pair a[5]: what each element holds
+                        out[-1]["elem_fields"] = [{"name": f.name, "type": str(f.type), "offset": f.bitpos // 8, "size": f.type.sizeof,
+                                                   "kind": "ptr" if is_ptr(f.type) else ("int" if scalar(f.type) else "other")}
+                                                  for f in base.fields() if f.name]
+                        out[-1]["elem_size"] = base.sizeof
             except gdb.error: pass
         if block.function: break
         block = block.superblock
@@ -274,23 +292,32 @@ def discover(roots, starts, locals_):
     queue = [r for r in roots if r[1][0] == "struct"]
     arrays = [r for r in roots if r[1][0] == "array"]
     seen = set()
-    while queue:
-        addr, d = queue.pop(0)
-        if not addr or addr in seen or addr in FREED: continue
-        if addr in KNOWN: d = KNOWN[addr]                      # known already: still follow its fields, they may be new
-        elif len(KNOWN) >= NODE_MAX or not real(addr): continue
-        if d[0] != "struct": continue
-        seen.add(addr)
-        try: b = read_block(addr, d[1])
-        except gdb.error: continue
-        KNOWN[addr] = d
-        fd = field_descs(d[1])
-        for f in b["fields"]:
-            fk = fd.get(f["name"])
-            if f["kind"] == "ptr" and f["value"] and fk: (queue if fk[0] == "struct" else arrays).append((f["value"], fk))
-    for addr, d in arrays:                                   # an int * or char * at the start of a used chunk
-        if len(KNOWN) >= NODE_MAX: break
-        if addr and addr not in KNOWN and addr not in FREED and starts and addr in starts: KNOWN[addr] = d
+    while queue or arrays:
+        while queue:
+            addr, d = queue.pop(0)
+            if not addr or addr in seen or addr in FREED: continue
+            if addr in KNOWN: d = KNOWN[addr]                  # known already: still follow its fields, they may be new
+            elif len(KNOWN) >= NODE_MAX or not real(addr): continue
+            if d[0] != "struct": continue
+            seen.add(addr)
+            try: b = read_block(addr, d[1])
+            except gdb.error: continue
+            KNOWN[addr] = d
+            fd = field_descs(d[1])
+            for f in b["fields"]:
+                fk = fd.get(f["name"])
+                if f["kind"] == "ptr" and f["value"] and fk: (queue if fk[0] == "struct" else arrays).append((f["value"], fk))
+        while arrays:                                          # an int *, char * or int ** at the start of a used chunk
+            addr, d = arrays.pop(0)
+            if not addr or addr in seen or addr in FREED: continue
+            if addr not in KNOWN:
+                if len(KNOWN) >= NODE_MAX or not starts or addr not in starts: continue
+                KNOWN[addr] = d
+            d = KNOWN[addr]; seen.add(addr)
+            if d[0] == "array" and len(d) > 3 and d[3]:            # a pointer array: each element can be a row of its own
+                n = REQ.get(addr, max(0, chunk_size(addr) - 8)) // 8
+                for p in words(addr, min(n, 512)):
+                    if p: (queue if d[3][0] == "struct" else arrays).append((p, d[3]))
 
 def heap_now():
     """every block we have ever seen — freed ones too, with their bytes as they are now"""
@@ -396,6 +423,10 @@ def snapshot():
             if v["kind"] == "ptr" and v["value"] and re.sub(r"\b(const|volatile)\b", "", v["target"] or "").strip() in ("char", "signed char", "unsigned char"):
                 lit = literal(v["value"])
                 if lit: v.update(lit)
+            if v["kind"] == "other" and v["bytes"] and re.match(r"^(?:const )?(?:signed |unsigned )?char \*\s*\[\d+\]$", v["type"]):   # char *words[3]
+                b = bytes.fromhex(v["bytes"]); ws = [int.from_bytes(b[k:k + 8], "little") for k in range(0, len(b) - 7, 8)]
+                lits = [literal(p) if p else None for p in ws[:64]]
+                if any(lits): v["cstrs"] = [{"text": x["cstr"], "ro": x["cstr_ro"]} if x else None for x in lits]
     ret = None
     if steps and len(frames) < len(steps[-1]["frames"]):           # a function just returned
         ret = returned(steps[-1]["frames"][0]["func"])
