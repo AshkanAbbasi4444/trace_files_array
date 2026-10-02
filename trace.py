@@ -258,6 +258,7 @@ def fields_of(v, t, depth=1):
               "offset": f.bitpos // 8, "size": f.type.sizeof,
               "target": str(ft.target()) if kind in ("ptr", "func") else None}
         if kind == "func": fd["fn"] = fn_name(val)             # the function it points to
+        if f.bitsize: fd["bitpos"], fd["bitsize"] = f.bitpos, f.bitsize   # unsigned level : 3: its bits, from the struct's start (offset alone is wrong)
         if is_rec(ft) and depth < NEST_MAX: fd["fields"] = fields_of(fv, ft, depth + 1)   # struct point pos: x and y
         fields.append(fd)
     return fields
@@ -318,8 +319,8 @@ def var_entry(out, sym, v):
         base = at
         while base.code == gdb.TYPE_CODE_ARRAY: base = base.target().strip_typedefs()
         if base.code == gdb.TYPE_CODE_STRUCT:                # struct pair a[5]: what each element holds
-            out[-1]["elem_fields"] = [{"name": f.name, "type": str(f.type), "offset": f.bitpos // 8, "size": f.type.sizeof,
-                                       "kind": kind_of(f.type)}
+            out[-1]["elem_fields"] = [dict({"name": f.name, "type": str(f.type), "offset": f.bitpos // 8, "size": f.type.sizeof,
+                                       "kind": kind_of(f.type)}, **({"bitpos": f.bitpos, "bitsize": f.bitsize} if f.bitsize else {}))
                                       for f in base.fields() if f.name]
             out[-1]["elem_size"] = base.sizeof
 

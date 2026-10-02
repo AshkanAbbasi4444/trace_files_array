@@ -423,6 +423,35 @@ a pointer, usually called **`next`**, to the next one.
   - An **array** of function pointers (`int (*ops[2])(int, int)`) is shown as plain text.
   - A pointer to a **library** function (like `puts`) shows its name, but there is no code to jump to.
 
+### Bit fields
+
+- A **bit field** is a struct field that takes only **some bits** of a byte, like `unsigned level : 3` (3 bits, so 0 … 7).
+  Several of them can share one byte: `struct flags { unsigned on : 1; unsigned level : 3; unsigned mode : 4; }` fits in
+  one byte.
+- Each one shows its **value**, plus a small **strip of its byte's 8 bits** (bit 7 on the left, bit 0 on the right) with
+  **its own bits filled in** blue (amber when the line just changed it). A field that spans two bytes shows both.
+  In one struct, each byte keeps its own column, so the same byte lines up in every row.
+- Bits of a field that isn't set yet show **`?`**.
+- Only the field that changed lights up, even though the others sit in the same byte.
+- **Memory layout:** under a row, a line lists **every bit field in each byte**, with its bits and value:
+  *`0x7ffd0024: on bit 0 = 1 · level bits 1…3 = 5 · mode bits 4…7 = 9`*. Hover a byte for the same list and its bits in binary.
+  In a heap block, bytes that no field uses are hatched as padding.
+- **Line in words:** *"`f.mode` is a bit field: 4 bits, bits 4…7 of byte +0, so it holds 0 … 15"*. A value that doesn't
+  fit says so: *"`70` doesn't fit in 6 bits: only its lowest 6 are kept, so `x.a` is `6`"*.
+- A bit field has **no address of its own** (`&f.level` doesn't compile), so the printf panel only prints its value.
+- In the trace, `trace.py` adds **`"bitpos"`** (the first bit, from the start of the struct) and **`"bitsize"`** to each bit
+  field: its `offset` alone can't say which bits it uses.
+
+![struct flags f after f.mode = 9: mode's bits 4…7 in amber](img/bit-fields.png)
+
+![Memory layout: the byte at 0x7ffd0024 holds on, level and mode](img/bit-fields-mem.png)
+
+![A malloc'd struct flags after h->mode = 3](img/bit-fields-heap.png)
+
+- **Try it:** `tests/bit_flags.c`, **steps 3 to 5** (`f.on`, `f.level`, `f.mode` set one by one; try the memory layout),
+  **step 16** (`h->mode = 3` on the heap).
+- **Limits:** in an array of structs (`struct flags a[4]`) each slot shows the values, without the bit strips.
+
 ### Trees
 
 - A struct with **`left` and `right`** (or `lchild`, `rchild`) pointers to its own type is drawn as a **tree**:
@@ -811,6 +840,7 @@ a pointer, usually called **`next`**, to the next one.
 | `bag.c` | `struct Bag { int *data; int size; }`: a field pointing into a `calloc`'d array, `mid = data + 2` |
 | `bag_typedef.c` | The same with an anonymous `typedef struct { … } Bag;` |
 | `fn_pointer.c` | A struct with a function-pointer field, set to `add` then `mul` and called through it |
+| `bit_flags.c` | `struct flags { unsigned on : 1; unsigned level : 3; unsigned mode : 4; }` changed field by field, on the stack and on the heap |
 | `board.c` | `char board[3][3]`: a char grid on the stack |
 | `circular.c` | A circular list of 3 nodes, walked, then cut and freed |
 | `deep_recursion.c` | 13 frames on the stack at once: frames wrap into rows |
@@ -870,4 +900,3 @@ Features that don't exist yet:
 - **bool**: shows as **0 / 1**, not `true` / `false`.
 - **qsort**: seeing what `qsort` does to an array, and the calls to your compare function.
 - **Binary view**: the bits of a number, `0b0000_1010`.
-- **Bit fields**: no special support. A field like `int flag : 1` is read as if it were a whole `int`.

@@ -128,6 +128,9 @@ pre{margin:0;height:calc(100vh - var(--barh,52px));overflow:auto;background:#FBF
 .c.lib::after{content:"";position:absolute;left:3px;right:3px;bottom:2px;height:2px;border-radius:1px;background:var(--ink)}
 .r.hdr>.a,.r.hdr>.nm,.r.hdr>.vl{color:#A0A7AE}
 .gapr{color:var(--muted);font-size:10.5px;padding:3px 0 4px calc(var(--ac) + 8px)}
+.bfl{color:var(--muted);font-size:10.5px;padding:1px 4px 3px calc(var(--ac) + 8px);max-width:calc(var(--ac) + var(--nc) + 192px + var(--vc));white-space:normal}
+.bfl b{color:var(--ink);font-weight:700}
+.bfl b.ch{color:var(--ambInk);background:var(--amb);border-radius:3px;padding:0 2px}
 .heap{display:flex;flex-direction:column;gap:12px;align-items:flex-start}
 .card{--ac:50px;--nc:96px;--vc:128px;border:1px solid var(--border);border-radius:10px;padding:8px 10px 10px;background:#fff;box-shadow:4px 4px 0 #DCE4EE}
 .card .ct{margin:-8px -10px 6px;padding:7px 10px 6px;background:#EEF2F7;border-radius:10px 10px 0 0;border-bottom:1px solid var(--line)}
@@ -371,6 +374,7 @@ button.icon{width:30px;padding:4px 0;font-weight:700;border-radius:50%}
   <div class="hrow" style="grid-template-columns:1fr;gap:3px;padding:5px 0"><span class="sw txt" style="font-weight:400;width:auto;white-space:nowrap">printf("*ptr = %d\n", *ptr);  → 42</span><span>Hover a box, a field or an array slot: the printf lines that print its value and its address from the running function, and what they print now. Click it to pin them, with a Copy button per line (Esc lets go)</span></div>
   <div class="hrow"><span class="sw txt" style="font-size:11.5px;color:#5B6B82;border:1px solid #A9B6C6;border-radius:999px;background:#F1F5F9;padding:0 6px">read-only</span><span>A char * to a string literal: the text it points to lives in read-only memory</span></div>
   <div class="hrow"><span class="sw txt" style="font-size:12px;width:auto;white-space:nowrap">→ add()</span><span>A function pointer, like <b>int (*op)(int, int)</b>: the function it holds. Click it to see that function in the code. printf prints it with %p</span></div>
+  <div class="hrow" style="grid-template-columns:1fr;gap:3px;padding:5px 0"><svg width="190" height="20" aria-hidden="true" font-family="'IBM Plex Mono',ui-monospace,Menlo,monospace" font-size="11"><text x="0" y="14" fill="#5B6B82">level</text><rect x="44" y="3" width="10" height="14" fill="#fff" stroke="#D5DEE8" stroke-width="0.8"/><text x="49" y="14" text-anchor="middle" font-weight="400" fill="#94A3B8">1</text><rect x="54" y="3" width="10" height="14" fill="#fff" stroke="#D5DEE8" stroke-width="0.8"/><text x="59" y="14" text-anchor="middle" font-weight="400" fill="#94A3B8">0</text><rect x="64" y="3" width="10" height="14" fill="#fff" stroke="#D5DEE8" stroke-width="0.8"/><text x="69" y="14" text-anchor="middle" font-weight="400" fill="#94A3B8">0</text><rect x="74" y="3" width="10" height="14" fill="#fff" stroke="#D5DEE8" stroke-width="0.8"/><text x="79" y="14" text-anchor="middle" font-weight="400" fill="#94A3B8">1</text><rect x="84" y="3" width="10" height="14" fill="#DBEAFE" stroke="#93C5FD" stroke-width="0.8"/><text x="89" y="14" text-anchor="middle" font-weight="700" fill="#14213D">0</text><rect x="94" y="3" width="10" height="14" fill="#DBEAFE" stroke="#93C5FD" stroke-width="0.8"/><text x="99" y="14" text-anchor="middle" font-weight="700" fill="#14213D">1</text><rect x="104" y="3" width="10" height="14" fill="#DBEAFE" stroke="#93C5FD" stroke-width="0.8"/><text x="109" y="14" text-anchor="middle" font-weight="700" fill="#14213D">0</text><rect x="114" y="3" width="10" height="14" fill="#fff" stroke="#D5DEE8" stroke-width="0.8"/><text x="119" y="14" text-anchor="middle" font-weight="400" fill="#94A3B8">1</text><text x="140" y="14" font-weight="700" fill="#14213D">2</text></svg><span>A bit field (<b>unsigned level : 3</b>): its value, and the 8 bits of the byte it lives in (bit 7 … bit 0) with its own bits filled. In the memory layout, a line under the row lists every bit field in each byte</span></div>
   <div class="hrow"><svg width="56" height="22" aria-hidden="true"><rect x="2" y="4" width="8" height="14" rx="2" fill="#BFDBFE"/><rect x="14" y="4" width="8" height="14" rx="2" fill="#93C5FD"/><rect x="26" y="4" width="8" height="14" rx="2" fill="#3B82F6"/><rect x="38" y="4" width="8" height="14" rx="2" fill="#1D4ED8"/></svg><span>Bar on the left of a box: how many hops away it is (own, 1, 2, 3+)</span></div>
   <div class="hrow"><svg width="56" height="22" aria-hidden="true"><rect x="2" y="2" width="5" height="18" rx="2.5" fill="#334155"/><rect x="16" y="2" width="5" height="18" rx="2.5" fill="#0F766E"/><rect x="30" y="2" width="5" height="18" rx="2.5" fill="#6D28D9"/></svg><span>Each function has its own colour; main is always slate</span></div>
  </div><div>
@@ -493,6 +497,37 @@ function jumpToFn(name,e){                                        /* scroll the 
   pre.querySelectorAll(".fnfl").forEach(x=>x.classList.remove("fnfl")); void el.offsetWidth; el.classList.add("fnfl");
 }
 
+/* ---------- bit fields: unsigned level : 3 is 3 bits of a byte, not whole bytes. trace.py adds bitpos and bitsize ---------- */
+const isBit=f=>!!f&&f.bitsize>0;
+const bitLo=f=>f.offset*8+(f.bitpos&7);                           /* its first bit, counted from the start of the struct (offset is already from there) */
+const bitBytes=f=>{ const lo=bitLo(f); return [lo>>3,(lo+f.bitsize-1)>>3]; };   /* the first and last byte its bits touch */
+const bitSigned=f=>!/\bunsigned\b|_Bool|\bbool\b/.test(f.type||"");   /* int x : 3 is signed: -4 … 3 */
+function bitVal(B,f,at){                                         /* its value from bytes B (hex pairs) that start at byte at of the struct */
+  const [a,z]=bitBytes(f); at=at||0; if(B.length<=z-at||a<at) return null;
+  let v=(le(B.slice(a-at,z-at+1))>>BigInt(bitLo(f)-8*a))&((1n<<BigInt(f.bitsize))-1n);
+  if(bitSigned(f)&&f.bitsize>1&&v>>BigInt(f.bitsize-1)) v-=1n<<BigInt(f.bitsize);
+  return Number(v); }
+const bitRange=f=>{ const lo=bitLo(f)&7, n=f.bitsize, [a,z]=bitBytes(f);   /* "bits 1…3 of byte 0" */
+  return a===z?`bit${n>1?"s":""} ${lo}${n>1?"…"+(lo+n-1):""} of byte +${a}`:`${n} bits from bit ${lo} of byte +${a} to byte +${z}`; };
+const bitSpan=f=>bitSigned(f)&&f.bitsize>1?`${-(2**(f.bitsize-1))} … ${2**(f.bitsize-1)-1}`:`0 … ${2**f.bitsize-1}`;
+const bitChars=f=>Math.max(2,String(bitSigned(f)&&f.bitsize>1?-(2**(f.bitsize-1)):2**f.bitsize-1).length);   /* the widest value it can hold */
+const BCW=10, BYW=8*BCW+4;                                       /* one bit's width; one byte's, with its gap */
+const bitCols=x=>{ const S=new Set(); FL(x).filter(isBit).forEach(g=>{ const [a,z]=bitBytes(g); for(let k=a;k<=z;k++) S.add(k); });   /* a column per byte that holds bit fields, highest first: a byte lines up with itself in every row */
+  const L=[...S].sort((p,q)=>q-p); return {col:new Map(L.map((k,i)=>[k,i])),w:L.length*BYW-4}; };
+function bitStrip(x,y,hex,f,o){                                   /* the bytes its bits sit in, bit 7 … bit 0 each, in their columns: its own bits filled */
+  const B=hx(hex), [a,z]=bitBytes(f), lo=bitLo(f), hi=lo+f.bitsize-1, ch=o&&o.ch, unk=(o&&o.unk)||(()=>false), col=o&&o.col, H=14; let s="";
+  for(let k=z;k>=a;k--){ const byte=parseInt(B[k]||"00",16); let cx=x+(col&&col.has(k)?col.get(k):z-k)*BYW;
+    for(let j=7;j>=0;j--){ const bit=8*k+j, mine=bit>=lo&&bit<=hi, q=unk(bit);
+      s+=`<rect x="${cx}" y="${y}" width="${BCW}" height="${H}" fill="${mine?(ch?AMBG:"#DBEAFE"):"#fff"}" stroke="${mine?(ch?AMB:"#93C5FD"):LN}" stroke-width="0.8"/>`+
+        `<text x="${cx+BCW/2}" y="${y+H-3}" font-size="11.5" text-anchor="middle" font-weight="${mine?700:400}" fill="${mine?(ch?AMB:INK):FAINT}" ${MONO}>${q?"?":(byte>>j)&1}</text>`;
+      cx+=BCW; } }
+  return `<g pointer-events="none">${s}</g>`; }
+const bitUnk=(x,unset)=>{ const R=FL(x).filter(g=>isBit(g)&&(unset||unsetF(x,g))).map(g=>[bitLo(g),bitLo(g)+g.bitsize-1]);   /* bits of fields not set yet: ? */
+  return b=>R.some(([l,h])=>b>=l&&b<=h); };
+const bitTip=(x,f,where)=>{ const [a]=bitBytes(f), B=x&&x.bytes?hx(x.bytes):[];
+  return `\na bit field: ${f.bitsize} bit${f.bitsize>1?"s":""}, ${bitRange(f)}${where?` (${where})`:""}, so it holds ${bitSpan(f)}`+
+    (B[a]?`\nthat byte is 0b${parseInt(B[a],16).toString(2).padStart(8,"0").replace(/(....)$/,"_$1")} (bit 7 … bit 0)`:"")+
+    `\nit has no address of its own: &…${f.leaf||f.name} doesn't compile`; };
 /* ---------- structs inside structs: a block's or a struct variable's fields, flattened: pos, then pos.x and pos.y ---------- */
 const FLC=new WeakMap();
 function FL(x){                                                   /* top-level fields are the trace's own objects; nested ones get a path name and an offset from x's start */
@@ -653,11 +688,11 @@ function reach(s,fr){                                            /* R["v:addr" |
   const follow=(x,v,d)=>v.kind==="ptr"&&v.init!==false&&v.value?{x,p:v.value,t:v.target,d}:null;
   fr.vars.forEach(v=>put("v:"+v.addr,v.name,"&"+v.name,v.type,follow(v.name,v,0),0));
   fr.vars.forEach(v=>{ if(v.kind==="other"&&v.init!==false) elemPtrs(v).forEach(e=>{ if(e.p) q.push({x:`${v.name}[${e.j}]`,p:e.p,t:e.t,d:0}); }); });   /* int *ps[3]: ps[1] leads on */
-  const sfs=(u,pre,acc,d)=>FL(u).forEach(f=>put("h:"+u.addr+":"+f.name,pre+acc+f.name,"&"+pre+acc+f.name,f.type,u.init===false||unsetF(u,f)?null:follow(pre+acc+f.name,f,d),d));   /* a struct variable's fields: local.pos.x */
+  const sfs=(u,pre,acc,d)=>FL(u).forEach(f=>put("h:"+u.addr+":"+f.name,pre+acc+f.name,amp(f,pre+acc+f.name),f.type,u.init===false||unsetF(u,f)?null:follow(pre+acc+f.name,f,d),d));   /* a struct variable's fields: local.pos.x */
   fr.vars.forEach(v=>sfs(v,v.name,".",0));
   const G=s.frames.find(f=>f.globals);                           /* globals: reachable by name from every function */
   if(G&&G!==fr){ G.vars.forEach(v=>{ if(!fr.vars.some(u=>u.name===v.name)) put("v:"+v.addr,v.name,"&"+v.name,v.type,follow(v.name,v,0),0); }); G.vars.forEach(v=>{ if(!fr.vars.some(u=>u.name===v.name)) sfs(v,v.name,".",0); }); }
-  const subs=(b,f,x,d)=>FL(b).forEach(g=>{ if(g.name.startsWith(f.name+".")){ const e=par(x)+"->"+g.name.slice(f.name.length+1); put("h:"+b.addr+":"+g.name,e,"&"+e,g.type,follow(e,g,d),d); } });   /* p = &it->list: p->next is it->list.next */
+  const subs=(b,f,x,d)=>FL(b).forEach(g=>{ if(g.name.startsWith(f.name+".")){ const e=par(x)+"->"+g.name.slice(f.name.length+1); put("h:"+b.addr+":"+g.name,e,amp(g,e),g.type,follow(e,g,d),d); } });   /* p = &it->list: p->next is it->list.next */
   while(q.length){
     const {x,p,t,d:d0}=q.shift(), sv=stack[p], d=d0+1;
     if(sv&&(!t||t===sv.type)){ put("v:"+p,"*"+x,x,sv.type,follow("*"+x,sv,d),d); sfs(sv,par(x),"->",d); continue; }   /* another variable, like main's head */
@@ -668,7 +703,7 @@ function reach(s,fr){                                            /* R["v:addr" |
       else if(!(("b:"+b.addr) in D)) D["b:"+b.addr]=d; continue; }   /* an int array: no fields to follow */
     if(p===b.addr){                                                                      /* a node, and the fields in it */
       put("b:"+b.addr,"*"+x,x,b.type,null,d);
-      FL(b).forEach(f=>put("h:"+b.addr+":"+f.name,par(x)+"->"+f.name,"&"+par(x)+"->"+f.name,f.type,follow(par(x)+"->"+f.name,f,d),d));
+      FL(b).forEach(f=>put("h:"+b.addr+":"+f.name,par(x)+"->"+f.name,amp(f,par(x)+"->"+f.name),f.type,follow(par(x)+"->"+f.name,f,d),d));
     } else {                                                                              /* a field inside a node, like &n->next */
       const f=fieldAt(b,p,t);
       if(f){ put("h:"+b.addr+":"+f.name,"*"+x,x,f.type,follow("*"+x,f,d),d); if(f.fields){ subs(b,f,x,d); if(!(("b:"+b.addr) in D)) D["b:"+b.addr]=d; } }   /* inside a struct field: its card is reachable too */
@@ -794,7 +829,7 @@ function printfFor(s,key,slot){                                  /* {fn, note, v
           add(adr,o.a,t+" *",show(u.addr)); return; }
         add(val,o.v,tv,out);
         const m=o.v.match(/^(.*)->([\w.]+)$/); if(m) add(val,`(*${m[1]}).${m[2]}`,tv,out);   /* head->val is (*head).val, item->pos.x is (*item).pos.x */
-        add(adr,o.a,t+" *",show(b.v?u.addr:b.n.addr+u.offset));
+        if(!isBit(u)) add(adr,o.a,t+" *",show(b.v?u.addr:b.n.addr+u.offset));   /* a bit field has no address to print */
         if(u.kind==="ptr"&&/char$/.test(bare(u.target))&&u.value&&!unset){   /* a char *: %s prints the string it points to */
           const str=u.cstr!=null?u.cstr:cString(s,u.value); if(str!=null) add(val,o.v,"char *s",str); } });
       return {val,adr};
@@ -821,6 +856,7 @@ function printfFor(s,key,slot){                                  /* {fn, note, v
     if(!S.sp) return `/* a struct: print its fields one at a time */`;
     return `printf("${x.e.padEnd(W)} = ${S.sp}\\n", ${S.ptr?pfCast(x.e):x.e});`; };
   val.forEach(x=>x.code=fmt(x)); adr.forEach(x=>x.code=fmt(x));
+  const bf=slot==null&&boxIn(s,key); if(bf&&bf.fd&&isBit(bf.fd)) note=(note?note+". ":"")+`a bit field has no address of its own: printf("%p", &…${bf.fd.leaf||bf.fd.name}) doesn't compile`;
   return {fn,note,val,adr};
 }
 function printfHTML(P,pin){                                      /* the panel under the tooltip, or the pinned one with Copy buttons */
@@ -830,7 +866,8 @@ function printfHTML(P,pin){                                      /* the panel un
   return `<div class="pf"><div class="pfh">print it from ${esc(P.fn)}${pin?"":`<span> · click to pin</span>`}</div>`+(P.note?`<div class="pfn">${esc(P.note)}</div>`:"")+
     grp("its value",P.val)+grp("its address",P.adr)+`</div>`;
 }
-const reachTip=(rc,who)=>rc?`\n${who} gets it with ${rc.v}  (${rc.t})\nits address is ${rc.a}  (${addrType(rc.t)})\nchange it: ${rc.v} = …;`+
+const amp=(f,e)=>isBit(f)?null:"&"+e;                           /* a bit field has no address: &f.level doesn't compile */
+const reachTip=(rc,who)=>rc?`\n${who} gets it with ${rc.v}  (${rc.t})`+(rc.a?`\nits address is ${rc.a}  (${addrType(rc.t)})`:`\nit has no address of its own (a bit field)`)+`\nchange it: ${rc.v} = …;`+
   (rc.alt.length?`\nalso: ${rc.alt.map(o=>o.v).join(", ")}`:""):"";
 const clip=(t,n)=>t.length>n?t.slice(0,Math.max(1,n-1))+"…":t;      /* at most n characters */
 const orText=(a,alts,max)=>alts.length?(a.length+4+alts[0].length<=max?`${a} or ${alts[0]}`:`${a} +${alts.length}`):a;   /* "head or *pp", or "head +1" if too long */
@@ -911,7 +948,7 @@ function evalExpr(s, frame, text){                              /* -> {hops:[{bo
   s.frames.forEach(f=>f.vars.forEach(v=>{ if(v.addr) stackAt[v.addr]=v; }));
   let i=0;
   const fail=(m,addr)=>{ const e=new Error(m); e.addr=addr; throw e; };
-  const place=(e,key,u,extra)=>Object.assign({e,key,kind:u.kind,value:u.value,type:u.type,target:u.target,init:u.init,bytes:u.bytes,size:u.size,ef:u.elem_fields,fn:u.fn},extra);
+  const place=(e,key,u,extra)=>Object.assign({e,key,kind:u.kind,value:u.value,type:u.type,target:u.target,init:u.init,bytes:u.bytes,size:u.size,ef:u.elem_fields,fn:u.fn,bs:u.bitsize},extra);
   const SZ={char:1,short:2,int:4,long:8,float:4,double:8};
   const readAt=(a,w)=>{                                          /* w bytes at address a: whose box, and the value */
     for(const f of s.frames) for(const v of f.vars) if(v.addr&&v.bytes&&a>=v.addr&&a+w<=v.addr+v.size){ const b=hx(v.bytes).slice(a-v.addr,a-v.addr+w); return {key:"v:"+v.addr,b}; }
@@ -964,7 +1001,7 @@ function evalExpr(s, frame, text){                              /* -> {hops:[{bo
   const par=e=>/^[*&]/.test(e)?`(${e})`:e;
   function unary(){
     if(toks[i]==="*"){ i++; const pl=unary(), r=deref(pl); hops.push({box:r.key,from:pl.key}); return r; }
-    if(toks[i]==="&"){ i++; const pl=unary(); return {e:"&"+pl.e,key:pl.key,kind:"addr",value:pl.addr,type:addrType(pl.type)}; }
+    if(toks[i]==="&"){ i++; const pl=unary(); if(pl.bs) fail(`${pl.e} is a bit field: it has no address, so &${pl.e} doesn't compile`); return {e:"&"+pl.e,key:pl.key,kind:"addr",value:pl.addr,type:addrType(pl.type)}; }
     return postfix();
   }
   function postfix(){
@@ -1152,6 +1189,7 @@ function arrSlots(v,full){                                       /* {n, w, el, p
 }
 function sfText(f,b){                                          /* one field of a struct in an array: its value as text */
   if(!b||b.length<f.size) return "?";
+  if(isBit(f)){ const v=bitVal(b,f,f.offset); return v===null?"?":String(v); }   /* b starts at its offset: only its bits */
   if(isFn(f)){ const a=num(le(b)), nm=fnSeen().at.get(a); return fnTxt({value:a,fn:nm}); }   /* a function pointer: its name, if the trace saw it */
   if(f.kind==="ptr"||/\*\s*$/.test(f.type||"")) return show(num(le(b)));
   if(/char/.test(f.type)&&f.size===1){ const c=parseInt(b[0],16); return c===0?"'\\0'":c>=32&&c<127?`'${String.fromCharCode(c)}'`:String(c); }
@@ -1364,7 +1402,8 @@ function lineCells(v,w,RA,st){                                  /* lineArr, cell
 function markFieldInit(t){                                       /* x.funset: fields not written yet. All of a struct variable's, and the nested ones (pos.x) of a heap struct */
   let prev=new Map();
   const leaves=(x,deep)=>FL(x).filter(f=>!f.fields&&(!deep||f.depth));
-  const bchg=(x,o,f)=>{ if(f.offset==null) return false; const a=hx(x.bytes).slice(f.offset,f.offset+f.size), b=hx(o.bytes).slice(f.offset,f.offset+f.size); return a.length!==b.length||a.some((c,k)=>c!==b[k]); };
+  const bchg=(x,o,f)=>{ if(f.offset==null) return false; if(isBit(f)) return bitVal(hx(x.bytes),f)!==bitVal(hx(o.bytes),f);   /* a bit field: only its own bits */
+    const a=hx(x.bytes).slice(f.offset,f.offset+f.size), b=hx(o.bytes).slice(f.offset,f.offset+f.size); return a.length!==b.length||a.some((c,k)=>c!==b[k]); };
   t.steps.forEach((s,i)=>{
     const cur=new Map(), RA=i>0?ranAt(i):null, P=i>0?t.steps[i-1]:null, W=[];   /* W: what the line that just ran assigned to: {addr, path} */
     if(SRC&&RA&&RA.fr&&!RA.call){ const code=codeAt(RA.line), m=code.match(/^(.*?[^=!<>+\-*\/%&|^])(?:\+=|-=|\*=|\/=|=)(?!=)/);
@@ -1408,7 +1447,7 @@ function markArrInit(t){                                         /* v.eset[k] = 
         if(L&&(L.all||(RA.fr&&RA.fr.func===f.func&&new RegExp(`\\b[A-Za-z_]\\w*\\s+${v.name}\\s*(?:\\[[^\\]]*\\]\\s*)+=\\s*(?:[{"]|;)`).test(code)))) fs=null;
         else { fs=old.fs.slice(); const B=hx(v.bytes), O=hx(old.bytes), S=RA&&!RA.call&&RA.fr?lineSites(v,w,RA.line,RA.fr,P).sites:[];
           for(let k=0;k<n;k++) F.forEach((fd,j)=>{ if(fs[k*nf+j]) return; const o=k*w+fd.offset;
-            if(S.some(x=>x.write&&x.slot===k&&(!x.field||x.field===fd.name))||B.slice(o,o+fd.size).some((x,q)=>x!==O[o+q])) fs[k*nf+j]=1; });
+            if(S.some(x=>x.write&&x.slot===k&&(!x.field||x.field===fd.name))||(isBit(fd)?bitVal(B.slice(k*w),fd)!==bitVal(O.slice(k*w),fd):B.slice(o,o+fd.size).some((x,q)=>x!==O[o+q]))) fs[k*nf+j]=1; });
           if(fs.every(x=>x)) fs=null; } }
       v.eset=e; if(nf) v.fset=fs; cur.set(id,{e,bytes:v.bytes,fs});
     }));
@@ -1996,7 +2035,10 @@ function lineWords(i){
         if(through) say(el?`${kc(lhs.replace(/^\*+/,"").replace(/\s*\[.*$/,""))} holds the address of ${kc(el.arr)}, so the write goes into ${kc(name)}.`
           :`${kc(lhs.replace(/^\*+/,""))} holds the address of ${kc(name)}, so the write goes into ${kc(name)}.`);
         say(op==="="?`Writes ${kc(after)} into ${kc(name)}${before===after?" (no change)":/^\?\?/.test(before)?" (it wasn't set before)":` (it was ${kc(before)})`}.`:`${kc(name)} goes from ${kc(before)} to ${kc(after)}.`);
-        const fb=!el&&boxIn(S,key), fu=fb&&(fb.v||fb.fd);
+        const fb=!el&&boxIn(S,key), fu=fb&&(fb.v||fb.fd), lx=lhs.replace(/\s+/g,"");
+        if(fb&&isBit(fb.fd)){ const bf=fb.fd, lit=rhs.match(/^\(?\s*(-?\s*(?:0[xX][0-9a-fA-F]+|\d+))[uUlL]*\s*\)?$/), want=lit?Number(lit[1].replace(/\s+/g,"")):null;   /* f.level = 5: a few bits of a byte */
+          say(`${kc(lx)} is a bit field: ${bf.bitsize} bit${bf.bitsize>1?"s":""}, ${bitRange(bf)}, so it holds ${bitSpan(bf)}. The other bits of that byte stay as they were.`);
+          if(op==="="&&want!==null&&want!==bf.value) say(`${kc(String(want))} doesn't fit in ${bf.bitsize} bit${bf.bitsize>1?"s":""}: only its lowest ${bf.bitsize} are kept, so ${kc(lx)} is ${kc(String(bf.value))}.`); }
         if(isFn(fu)&&fu.value&&fu.fn) say(`Now calling ${kc(lhs.replace(/^\*\s*/,"").replace(/\s+/g,"")+"(…)")} runs ${kc(fu.fn+"()")}: a function's name on its own, like ${kc(fu.fn)}, is its address.`);
         const bx=boxIn(P,key);
         if(bx&&bx.v&&bx.v.arg&&bx.fr===P.frames[0]&&P.frames[1]){                                   /* a parameter: only this copy changes */
@@ -2069,7 +2111,7 @@ function renderCards(s){
     const changed=new Set();                                      /* set by this line, or its bytes differ from the step before */
     if(PB&&!dead) for(let i=0;i<Math.min(n,A.heap?4096:n);i++){ if(!set(i)) continue; const b=was(i); if((pv&&!wasSet(i))||(b&&b.some((x,j)=>x!==B[i*w+j]))) changed.add(i); }
     const wasTxt=i=>{ if(!wasSet(i)) return "??"; const b=was(i); return b?(A.chr?charParts(b.join(""),1)[0]:A.sf?`{${A.sf.map(f=>sfText(f,b.slice(f.offset,f.offset+f.size))).join(", ")}}`:elemText(el,b)):null; };
-    const sfLines=(i,cx,C,fw)=>A.sf.map((f,k)=>{ const b=C?was(i):null, ch=!!b&&b.slice(f.offset,f.offset+f.size).some((x,j)=>x!==B[i*w+f.offset+j]);   /* which field this line changed */
+    const sfLines=(i,cx,C,fw)=>A.sf.map((f,k)=>{ const b=C?was(i):null, ch=!!b&&(isBit(f)?bitVal(b,f)!==bitVal(B.slice(i*w,(i+1)*w),f):b.slice(f.offset,f.offset+f.size).some((x,j)=>x!==B[i*w+f.offset+j]));   /* which field this line changed */
       const fs=set(i)&&(!v.fset||!!v.fset[i*A.sf.length+k]);       /* this field is set yet */
       const room=Math.max(2,Math.floor((cw-14)/6.9)-f.name.length), tv0=fw?"··":fs?(A.fv[i]||[])[k]??"?":"??", tv=tv0.length>room?tv0.slice(0,room-1)+"…":tv0;
       return `<text x="${cx+5}" y="${c0+16.5+k*16}" font-size="11.5" fill="${MUT}" ${MONO}>${esc(f.name)}<tspan dx="5" font-weight="700" fill="${ch?AMB:dead?FAINT:fs?INK:MUT}">${ch?`<tspan class="pop">${esc(tv)}</tspan>`:esc(tv)}</tspan></text>`; }).join("");
@@ -2125,7 +2167,8 @@ function renderCards(s){
   };
   const structW=v=>Math.ceil(Math.max(SLOTW,11+7.6*v.name.length+14+6.9*v.type.length+8+(isListHead(v)?48:0),
     ...FL(v).map(g=>{ const x=isArrF(g)&&fieldArr(v,g), A=x&&arrSlots(x); return A?(g.depth||0)*12+12+arrGeo(A,AP.cw.get(SFN+"|"+v.name+"|"+g.name)||30,"","",0).endL+arrGeo(A,AP.cw.get(SFN+"|"+v.name+"|"+g.name)||30,"","",0).endW+12:0; }),
-    ...FL(v).map(g=>12+(g.depth||0)*12+6.9*(g.leaf||g.name).length+16+(g.fields?6.9*short(g.type).length:7.2*(g.kind==="ptr"?(simple?10:14):isFn(g)?fnMax()+4:g.kind==="int"?11:12))+12)));
+    ...FL(v).map(g=>12+(g.depth||0)*12+6.9*(g.leaf||g.name).length+16+(g.fields?6.9*short(g.type).length:isBit(g)?bitCols(v).w+8+7.2*bitBV(v):7.2*(g.kind==="ptr"?(simple?10:14):isFn(g)?fnMax()+4:g.kind==="int"?11:12))+12)));
+  const bitBV=v=>Math.max(2,...FL(v).filter(isBit).map(bitChars));   /* the widest bit-field value in this struct: the strips line up */
   let SFN="";                                                     /* the frame being drawn: an array field's width is kept per function */
   const structBox=(sl,f,bx,by)=>{                                 /* struct item2 local: its fields one per line, a struct inside it as a box */
     const v=sl.v, w=sl.w, key="v:"+v.addr, L=FL(v), unset=v.init===false, rc=RC[key], hd=RC._D?RC._D[key]:undefined, out=hd===undefined&&!!inner;
@@ -2147,7 +2190,8 @@ function renderCards(s){
           `<text x="${bx+12+ix}" y="${y+13}" font-size="11.5" font-weight="700" fill="${MUT}" ${MONO}>${esc(g.leaf||g.name)}</text><text x="${bx+w-12-ix}" y="${y+13}" font-size="10" text-anchor="end" fill="${MUT}" ${MONO}>${esc(short(g.type))}</text></g>`; }
       else { const un=unset||unsetF(v,g), txt=un?"??":g.kind==="ptr"?show(g.value):isFn(g)?fnTxt(g):g.kind==="int"?String(g.value):(arrText(g.type,g.size,fieldHex(v,g),12)||"—");
         if(g.kind==="ptr"&&!un&&g.value) ptrs.push({g,C:Cg,I:Ig,y:y+8});
-        h+=`<g data-box="${k}" data-tip="${esc(tip+(un?"\nnot set yet: leftover bytes":fnTip(g)))}">`+(Cg||Ig?`<rect x="${bx+8+ix}" y="${y+2}" width="${w-16-2*ix}" height="15" rx="3" fill="${Cg?AMBG:"none"}" stroke="${Ig?INK:"none"}" stroke-width="1.4"/>`:"")+
+        const BC=isBit(g)&&bitCols(v), bs=BC?bitStrip(bx+w-12-ix-7.2*bitBV(v)-8-BC.w,y+2,v.bytes,g,{ch:Cg,unk:bitUnk(v,unset),col:BC.col}):"";   /* unsigned level : 3: the byte's bits, its own filled */
+        h+=`<g data-box="${k}" data-tip="${esc(tip+(un?"\nnot set yet: leftover bytes":fnTip(g))+(isBit(g)?bitTip(v,g,`the byte at ${show(v.addr+bitBytes(g)[0])}`):""))}">`+(Cg||Ig?`<rect x="${bx+8+ix}" y="${y+2}" width="${w-16-2*ix}" height="15" rx="3" fill="${Cg?AMBG:"none"}" stroke="${Ig?INK:"none"}" stroke-width="1.4"/>`:"")+bs+
           `<text x="${bx+12+ix}" y="${y+13}" font-size="11.5" font-weight="${rg?700:400}" fill="${rg?REACH:MUT}" ${MONO}>${esc(g.leaf||g.name)}</text>`+
           `<text x="${bx+w-12-ix}" y="${y+13}" font-size="12" font-weight="800" text-anchor="end" fill="${Cg?AMB:un?MUT:INK}" ${MONO}${un?"":fnAttr(g)}>${Cg?`<tspan class="pop">${esc(txt)}</tspan>`:esc(txt)}</text></g>`; }
       y+=16; });
@@ -2324,7 +2368,8 @@ function renderCards(s){
   const GH=24, rowsOf=n=>{ let y=0; return FL(n).map(f=>{ const h=f.fields?GH:isArrF(f)?AP.AFH:FH, r={f,y,h}; y+=h; return r; }); };   /* a nested struct: a header row, then its own fields. An array field: a row of slots */
   const nf=Math.max(1,...s.heap.map(n=>(n.fields||[]).length)), CARDH=Math.max(46+Math.max(nf*FH,...s.heap.map(n=>FL(n).reduce((t,f)=>t+(f.fields?GH:isArrF(f)?AP.AFH:FH),0))),AP.heapArr?ARRH:0);
   const FGEO=(o,f,id)=>{ const x=fieldArr(o,f), A=x&&arrSlots(x); return A?{x,A,g:arrGeo(A,AP.cw.get(id)||30,"","",0)}:null; };   /* an array field's slots */
-  const SWf=n=>n.kind==="array"||n.freed?CW:Math.max(CW,...FL(n).map(f=>{ const G=isArrF(f)&&FGEO(n,f,"h"+n.addr+"|"+f.name); return G?Math.ceil((f.depth||0)*10+4+G.g.endL+G.g.endW+12):0; }));   /* wide enough for its slots */
+  const SWf=n=>n.kind==="array"||n.freed?CW:Math.max(CW,...FL(n).map(f=>{ const G=isArrF(f)&&FGEO(n,f,"h"+n.addr+"|"+f.name); return G?Math.ceil((f.depth||0)*10+4+G.g.endL+G.g.endW+12)
+    :isBit(f)?Math.ceil((f.depth||0)*10+11+6.4*Math.max(16,(f.leaf||f.name).length)+10+bitCols(n).w+8+8.5*bitBV(n)+10):0; }));   /* its name may be a 16-character reach label */   /* wide enough for its slots, and for a bit field's bits */
   /* int **grid: its column of row pointers and the rows they point to, drawn together as one grid */
   const GRIDS=[], claimed=new Set(), ROWG=52+Math.max(0,AP.rows-1)*14, GG=new Map(), COLG={};
   items.forEach(it=>{ const n=it.n; if(!n||!isPtrArr(n)||n.freed||!HGEO[n.addr]) return;
@@ -2545,8 +2590,9 @@ function renderCards(s){
       const txt=un?"??":fd.kind==="ptr"?show(fd.value):isFn(fd)?fnTxt(fd):fd.kind==="other"?(arrText(fd.type,fd.size,fieldHex(n,fd),14)||"—"):(fd.value===null?"—":String(fd.value));
       const fa=fd.offset!=null?n.addr+fd.offset:null, faTxt=fa===null?"":simple?show(fa):"…"+fa.toString(16).slice(-4);   /* this field's own address */
       const croom=Math.floor((CWn-10-2*ix-(faTxt?6.9*(faTxt.length+3)+10:0)-11)/6.9)-13;   /* the hover "change: … = …;" stops before the address */
-      o+=`<g data-box="${key}" data-tip="${esc(fd.name+" ("+fd.type+")"+(fa===null?"":"\nat "+real(fa)+(simple?" ("+show(fa)+")":"")+", the block's start + "+fd.offset)+(un?"":fnTip(fd))+reachTip(rf,inner?inner.func:""))}">`+
+      o+=`<g data-box="${key}" data-tip="${esc(fd.name+" ("+fd.type+")"+(fa===null?"":"\nat "+real(fa)+(simple?" ("+show(fa)+")":"")+", the block's start + "+fd.offset)+(un?"":fnTip(fd))+(isBit(fd)?bitTip(n,fd,`the byte at ${show(n.addr+bitBytes(fd)[0])}`):"")+reachTip(rf,inner?inner.func:""))}">`+
          `<rect x="${bx+3+ix}" y="${fy+3}" width="${CWn-6-2*ix}" height="${FH-6}" rx="4" fill="${Cf?AMBG:"transparent"}"${Ix?` stroke="${INK}" stroke-width="1.6"`:""}/>`+
+         (isBit(fd)?(BC=>bitStrip(bx+CWn-10-ix-8.5*bitBV(n)-8-BC.w,fy+6,n.bytes,fd,{ch:Cf,unk:bitUnk(n,false),col:BC.col}))(bitCols(n)):"")+   /* the byte's bits, its own filled */
          `<text x="${bx+11+ix}" y="${fy+17}" font-size="10.5" font-weight="${rf?700:400}" fill="${rf?REACH:MUT}" ${MONO}${rf?EX(rf.v):""}>${esc((t=>fd.depth?clip(t,Math.max(4,Math.floor((CWn-2*ix-24-txt.length*(txt.length>7?7.3:8.5))/6.4))):t)(rf?orText(rf.v,rf.alt.map(o=>o.v),16):fd.leaf||fd.name))}</text>`+   /* nested: the name stops before the value */
          `<text x="${bx+CWn-10-ix}" y="${fy+17}" font-size="${txt.length>7?12:14}" font-weight="800" text-anchor="end" fill="${Cf?AMB:un?MUT:INK}" ${MONO}${un?"":fnAttr(fd)}>${Cf?`<tspan class="pop">${esc(txt)}</tspan>`:esc(txt)}</text>`+
          (rf&&croom>=4?`<text class="hov" x="${bx+11+ix}" y="${fy+30}" font-size="10" fill="${MUT}" ${MONO}${EX(rf.v)}>change: <tspan fill="${REACH}">${esc(clip(rf.v,croom))} = …;</tspan></text>`:"")+
@@ -2804,6 +2850,12 @@ function memModel(s){
   const freedAt=t=>s.heap.some(n=>n.freed&&t>=n.addr&&t<n.addr+(n.size||16));
   const ptrTxt=b=>{ const v=le(b), t=byA[num(v)];
     return v===0n?{txt:"NULL"}:{txt:bigShow(v)+(t&&t.freed?" (freed)":""),cls:t&&t.freed?"bad":""}; };
+  const bitRows=(o,rowAt,unk)=>{                                 /* the bytes of struct o that hold bit fields: every field in each, for its row and its byte */
+    const by=new Map();
+    leafEls(o).filter(isBit).forEach(g=>{ const [a,z]=bitBytes(g), lo=bitLo(g);
+      for(let k=a;k<=z;k++){ if(!by.has(k)) by.set(k,[]); by.get(k).push({g,l:Math.max(lo,8*k)-8*k,h:Math.min(lo+g.bitsize-1,8*k+7)-8*k,first:k===a,un:unk(g),key:"h:"+o.addr+":"+g.name}); } });
+    by.forEach((L,k)=>{ const a=o.addr+k, r=rowAt(a); if(!r) return; L.sort((x,y)=>x.l-y.l);
+      (r.bits=r.bits||[]).push({a,k,L}); const c=r.cells[a-r.addr]; if(c) c.bf=L; }); };
   s.frames.forEach((f,fi)=>{                                     /* stack: one row per aligned 8-byte slot */
     const rows=new Map();
     const row=a=>{ if(!rows.has(a)) rows.set(a,{addr:a,cells:Array(8).fill(null),nm:[],vl:[]}); return rows.get(a); };
@@ -2840,6 +2892,7 @@ function memModel(s){
         const got=LF.filter(g=>v.addr+g.offset>=a&&v.addr+g.offset<a+8); if(!got.length) continue;
         r.vl=got.map(g=>({name:g.name,txt:unsetF(v,g)?"??":g.kind==="ptr"?(g.value?show(g.value):"NULL"):isFn(g)?fnTxt(g):g.kind==="int"?String(g.value):"—",fn:!unsetF(v,g)&&isFn(g)&&g.value&&g.fn}));
         got.forEach(g=>{ if(g.kind==="ptr"&&g.value&&!unsetF(v,g)) r.ptrs=(r.ptrs||[]).concat({to:g.value,freed:freedAt(g.value),k:"h:"+v.addr+":"+g.name}); }); }
+      if(v.fields) bitRows(v,a=>rows.get(a-a%8),g=>junk||unsetF(v,g));   /* struct flags f: which bit fields share each byte */
     });
     if(FRAMEINT&&f.rbp&&f.frame_bytes){                          /* fill in the rest of the frame */
       const fb=hx(f.frame_bytes), lo=f.lo??f.rsp, hi=f.rbp+16;
@@ -2866,7 +2919,8 @@ function memModel(s){
     const nextHdr=H.length===16?Number(le(H.slice(8))&~7n)-16:Infinity;   /* where the next chunk's header starts, from this block's start */
     const flds=D?Array.from({length:Math.min(D.n,Math.ceil(LIMIT/D.w))},(_,i)=>{ const b=hx(n.bytes).slice(i*D.w,(i+1)*D.w), set=!n.eset||!!n.eset[i];   /* one field per element: [0] [1] … */
         return {name:`[${i}]`,type:D.el,kind:set&&D.w===8&&/\*\s*$/.test(D.el)?"ptr":"int",offset:i*D.w,size:D.w,value:!set||b.length<D.w?"??":isChr(D.el,D.w)?charParts(b.join(""),1)[0]:elemText(D.el,b)}; }):leafEls(n);   /* a struct inside a struct: its own fields, pos.x and pos.y; an array field: buf[0] buf[1] … */
-    flds.forEach(f=>{ if(f.offset!=null) for(let k=0;k<(f.size||0);k++) own[f.offset+k]=f; });
+    const fsp=f=>isBit(f)?[bitBytes(f)[0],bitBytes(f)[1]+1]:[f.offset,f.offset+(f.size||0)];   /* the bytes a field uses: a bit field, only the ones its bits are in */
+    flds.forEach(f=>{ if(f.offset!=null){ const [a,z]=fsp(f); for(let k=a;k<z;k++) own[k]=f; } });
     if(H.length===16){
       const sz=le(H.slice(8));
       [0,1].forEach(w=>{
@@ -2893,8 +2947,8 @@ function memModel(s){
       }
       if(alloc){ nm.push(w===0?"tcache next":w===1?"tcache key":"allocator"); if(w===1) vl.push({txt:"double-free check"}); }
       else flds.forEach(f=>{
-        if(f.offset==null||f.offset+f.size<=off||f.offset>=off+8) return;
-        if(f.offset<off){ nm.push(`<small>↳ ${esc(f.name)} +${off-f.offset}</small>`); return; }
+        if(f.offset==null) return; const [fo,fe]=fsp(f); if(fe<=off||fo>=off+8) return;
+        if(fo<off){ nm.push(`<small>↳ ${esc(f.name)} +${off-fo}</small>`); return; }
         const t=f.kind==="ptr"&&f.size===8?ptrTxt(raw.slice(f.offset,f.offset+8)):isFn(f)?{txt:fnTxt(f),fn:!n.freed&&f.value&&f.fn}:{txt:f.kind==="int"?String(f.value):"—"};
         nm.push(esc(f.name)+(n.freed?"<small>old</small>":"")); vl.push({name:f.name,txt:t.txt,cls:n.freed?"":t.cls,fn:t.fn});
         const to=!n.freed&&f.kind==="ptr"&&f.size===8?num(le(raw.slice(f.offset,f.offset+8))):0; if(to) ptrs.push({to,freed:freedAt(to),k:"h:"+n.addr+":"+f.name});
@@ -2906,6 +2960,7 @@ function memModel(s){
         ?"free() wrote this: where the next free block of this size is (glibc stores it XOR this address >> 12)"
         :w===1?"free() wrote this: a random key; free() checks it to catch a double free":"free() wrote this"});
     }
+    if(!n.freed&&!isA&&n.fields) bitRows(n,a=>rows.find(r=>r.addr===a-a%8&&r.cls!=="hdr"),g=>unsetF(n,g));
     M.blocks.push({n,rows,more:raw.length>size?raw.length-size:0});
   });
   return M;
@@ -2917,12 +2972,15 @@ function renderMem(s){
   const M=memModel(s), P=at>0?memModel(TRACE.steps[at-1]):null, R=reachable(s), RET=retInfo(s), LLm=listLines(s), prevPtr={};
   if(P) [...P.frames.flatMap(f=>f.rows),...P.blocks.flatMap(b=>b.rows)].forEach(r=>(r.ptrs||[]).forEach(p=>prevPtr[p.k]=p.to));   /* where each pointer pointed a step ago */
   let k=0, ri=0; ARROWS=[];
-  const LB=libBytes(s);
+  const LB=libBytes(s), CHG=changed(at);
+  const bfBits=x=>x.l===x.h?`bit ${x.l}`:`bits ${x.l}…${x.h}`;   /* which bits of this byte, bit 0 the lowest */
+  const bfTip=c=>`\nbit fields in this byte:\n`+c.bf.map(x=>`  ${x.g.name}: ${bfBits(x)}${x.first?` = ${x.un?"?? (not set yet)":x.g.value}`:" (the rest of it)"}`).join("\n")+
+    (c.h?`\nas bits: 0b${parseInt(c.h,16).toString(2).padStart(8,"0").replace(/(....)$/,"_$1")} (bit 7 … bit 0)`:"");
   const cell=c=>{
     if(!c) return `<i class="c gap" data-tip="not part of any variable"></i>`;
     if(c.cls==="none") return `<i class="c none" data-tip="past the end of the struct"></i>`;
     const old=P?(c.hdr?P.hdr:P.bytes).get(c.a):undefined, hot=!!P&&(c.hdr?old!==undefined&&old!==c.h:old!==c.h), lb=LB.get(c.a);
-    const tip=`byte at ${real(c.a)}`+(hot?`\nwas ${old===undefined?"not on screen":old}`:"")+
+    const tip=`byte at ${real(c.a)}`+(hot?`\nwas ${old===undefined?"not on screen":old}`:"")+(c.bf?bfTip(c):"")+
       (lb?`\nwritten inside ${lb.func}()${lb.in&&lb.in!==lb.func?`, in ${lb.in}`:""}: a gdb watchpoint caught it${lb.guess?" (on a guessed block: may be wrong)":""}`:"");
     const cls=(c.cls||"")+(lb?" lib":"")+(s.oobB&&s.oobB.has(c.a)?" oobw":"");      /* a byte written past an array's end */
     return hot?`<i class="c chg ${cls}" style="--k:${k++}" data-tip="${esc(tip)}"><b class="o">${old||""}</b><b class="n">${c.h}</b></i>`
@@ -2934,8 +2992,10 @@ function renderMem(s){
     (r.bx||[]).forEach(k=>{ const pv=prevPtr[k], cur=(r.ptrs||[]).find(p=>p.k===k);                   /* cut links */
       if(pv&&(!cur||cur.to!==pv)) ARROWS.push({src:id,to:pv,ghost:true,k:"ghost"}); });
     const vals=r.vl.map(v=>`<span class="${v.cls||""}"${v.fn?` data-fn="${esc(v.fn)}"`:""}>${esc((r.vl.length>1&&v.name?v.name+" = ":"")+v.txt)}</span>`).join(", ");
+    const bits=(r.bits||[]).map(b=>`<div class="bfl" data-tip="${esc(`byte at ${real(b.a)}: ${b.L.length} bit field${b.L.length>1?"s":""} share${b.L.length>1?"":"s"} it`+bfTip({h:M.bytes.get(b.a),bf:b.L}))}">${show(b.a)}: `+
+      b.L.map(x=>`<b class="${CHG.has(x.key)?"ch":""}">${esc(x.g.name)}</b> ${bfBits(x)}${x.first?` = ${x.un?"??":x.g.value}`:" (more of it)"}`).join(" · ")+`</div>`).join("");
     return (r.more?`<div class="gapr">⋯ ${esc(r.more)}</div>`:"")+
-      `<div class="r${r.cls?" "+r.cls:""}${hot?" hot":""}${r.rz?" rz":""}" data-r="${id}" data-addr="${r.addr}"${r.lad?` data-lad="${esc(r.lad)}"`:""}${r.bx&&r.bx.length?` data-box="${r.bx.join(" ")}"`:""} data-tip="${esc((r.tip?r.tip+"\n":"")+"real address "+real(r.addr)+(r.rtip||""))}">${r.sp?`<span class="spm${r.spz?" rz":""}">${r.sp}</span>`:""}<span class="a">${show(r.addr)}</span><span class="nm">${r.nm.join(" ")}</span>${cells}<span class="vl">${vals}</span></div>`;
+      `<div class="r${r.cls?" "+r.cls:""}${hot?" hot":""}${r.rz?" rz":""}" data-r="${id}" data-addr="${r.addr}"${r.lad?` data-lad="${esc(r.lad)}"`:""}${r.bx&&r.bx.length?` data-box="${r.bx.join(" ")}"`:""} data-tip="${esc((r.tip?r.tip+"\n":"")+"real address "+real(r.addr)+(r.rtip||""))}">${r.sp?`<span class="spm${r.spz?" rz":""}">${r.sp}</span>`:""}<span class="a">${show(r.addr)}</span><span class="nm">${r.nm.join(" ")}</span>${cells}<span class="vl">${vals}</span></div>`+bits;
   };
   const OFFS=`<div class="r off"><span></span><span></span>${[0,1,2,3,4,5,6,7].map(i=>`<i class="c">+${i}</i>`).join("")}<span></span></div>`;
   let st="", hp=[];
@@ -3000,6 +3060,7 @@ function predTruth(a,b){                                         /* the boxes th
     if(!w||w!==Math.round(w)) return diff(x.bytes,y.bytes,0,1e9)&&out.add(key);
     for(let k=0;k<Math.min(n,4096);k++) if(diff(x.bytes,y.bytes,(base||0)+k*w,w)) out.add(key+"|"+k); };
   const fields=(o,x,y)=>FL(y).forEach(g=>{ if(g.fields||g.offset==null) return; const k="h:"+y.addr+":"+g.name;   /* a struct: field by field */
+    if(isBit(g)&&x.bytes&&y.bytes){ if(bitVal(H(x.bytes),g)!==bitVal(H(y.bytes),g)) out.add(k); return; }   /* a bit field: only its own bits */
     if(isArrF(g)){ const D=dimsOf(g.type), w=g.size/D.dims[0]; for(let j=0;j<D.dims[0];j++) if(diff(x.bytes,y.bytes,g.offset+j*w,w)) out.add(k+"|"+j); }
     else if(diff(x.bytes,y.bytes,g.offset,g.size)||(!x.bytes&&String((FL(x).find(f=>f.name===g.name)||{}).value)!==String(g.value))) out.add(k); });
   const pv=new Map(); P.frames.forEach(f=>f.vars.forEach(v=>pv.set(v.addr+"|"+f.func+"|"+v.name,v)));
