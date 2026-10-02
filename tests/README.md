@@ -38,6 +38,7 @@ Small C programs and their traces, to re-check `node_cards_viewer.html` and `tra
 | klist | kernel style: `struct list_head`, INIT_LIST_HEAD, list_add_tail, list_del, container_of with offsetof, `struct item { int val; struct list_head list; }`, a global LIST_HEAD and one on the stack |
 | bag_typedef | `typedef struct { int *data; int size; } Bag;` with no struct name: the Bag card (it didn't show before) and its data array |
 | fn_pointer | `struct calc { int a; int b; int (*op)(int, int); }`: `c.op = add`, `c.op(c.a, c.b)`, then `c.op = mul`: the field shows `→ add()`, click it to see add in the code; "Calls add through c.op" |
+| decay | `int arr[8]` passed to `sum(int *a, int n)`, then `int *p = arr;`, `p = arr + 1;`, `printf("%p\n", (void *)arr)`: the "decays to &arr[0]" tag on those lines and on arr's box, and "sizeof here is 8 (a pointer), sizeof(arr) in main is 32" on a and p |
 | bit_flags | `struct flags { unsigned on : 1; unsigned level : 3; unsigned mode : 4; }` set field by field on the stack, passed to show(), then a malloc'd copy: each field's value and its byte's 8 bits with its own bits filled; the memory view lists every bit field in the byte |
 | ring | `struct ring { int buf[5]; int n; }` filled in a loop on the stack and malloc'd (and `int seen[20]` for "+4 more"): array fields as slots, `r->buf[2]` |
 | double_free | frees the same block twice (once in a helper, once in main): the "free(0x100) a second time" banner on line 14; glibc aborts |

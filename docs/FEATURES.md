@@ -295,6 +295,28 @@ Drag the slider, or press **→** until you get there.
 
 - **Try it:** `tests/ring.c`, **step 50** (stack) and **step 34** (heap).
 
+### Array decay
+
+- An array **used as a value** turns into a **pointer to its first element**: `arr` becomes `&arr[0]`. This is called
+  **decay**. It happens when the array is **passed to a function** (`sum(arr, 8)`), **put in a pointer** (`int *p = arr;`),
+  used in **arithmetic** (`arr + 1`) or **printed with `%p`** (`printf("%p", (void *)arr)`).
+  It doesn't happen in `sizeof(arr)`, `&arr` or `arr[i]`.
+- **In the code**, such a line gets a tag **`decays to &arr[0]`** (hover it for why).
+- **On the picture**, when that line runs, the array's box gets the same tag, and **line in words** says
+  *"arr decays to &arr[0]: used as a value, an array becomes a pointer to its first element"*.
+- A **pointer box** that points into an array says how big each one really is:
+  **"sizeof here is 8 (a pointer), sizeof(arr) in main is 32"**, with the real sizes. That's why a function that gets
+  the array can't work out its length: pass the length along.
+
+![sum(arr, 8): the tags in the code, arr's tag, and a's sizeof note](img/decay-call.png)
+
+![p = arr + 1: p points to arr[1]](img/decay-pointer.png)
+
+- **Try it:** `tests/decay.c`, **step 5** (the call), **step 27** (`int *p = arr;`), **step 28** (`p = arr + 1;`),
+  **step 29** (`printf("%p", …)`).
+- **Limits:** only array **variables** (on the stack or global) are tagged, not array fields like `s.buf`.
+  An array that is indexed (`arr[i]`) isn't tagged, though C decays it there too.
+
 ---
 
 ## 5. Linked lists and structs
@@ -873,6 +895,7 @@ a pointer, usually called **`next`**, to the next one.
 | `board.c` | `char board[3][3]`: a char grid on the stack |
 | `child_list.c` | A 2-level list built by hand: 2's child 5 → 6 and 4's child 7 → 8, each in a row under its node |
 | `circular.c` | A circular list of 3 nodes, walked, then cut and freed |
+| `decay.c` | An `int arr[8]` passed to `sum()`, `int *p = arr;`, `p = arr + 1;` and `printf("%p", (void *)arr)`: array decay |
 | `deep_recursion.c` | 13 frames on the stack at once: frames wrap into rows |
 | `dlist.c` | A doubly linked list: build, insert in the middle, delete |
 | `dlist_broken.c` | A doubly linked list with one wrong `prev`: the red arrow and warning |

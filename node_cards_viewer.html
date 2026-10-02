@@ -241,6 +241,7 @@ button.icon{width:30px;padding:4px 0;font-weight:700;border-radius:50%}
 .mr{width:100%;margin-top:10px;font-size:12.5px}
 .cl{cursor:pointer}
 .cl.fnfl{animation:fnfl 2s ease-out}
+.cl .dk{flex:0 0 auto;align-self:center;margin-left:10px;font:600 10.5px/15px var(--sans);color:var(--ink);background:var(--panel);border:1px solid var(--border);border-radius:999px;padding:0 7px;cursor:help}
 @keyframes fnfl{0%,45%{background:#DBEAFE;box-shadow:inset 3px 0 0 var(--reach)}}
 #pic [data-fn]{cursor:pointer}
 #pic [data-fn]:hover{text-decoration:underline}
@@ -401,6 +402,7 @@ button.icon{width:30px;padding:4px 0;font-weight:700;border-radius:50%}
   <div class="hrow"><span class="sw line"></span><span>The line that just ran</span></div>
   <div class="hrow"><span class="sw line nx"></span><span>The line that runs next</span></div>
   <div class="hrow"><span class="sw txt" style="border-bottom:1px dotted #1D4ED8;border-radius:0;font-weight:500">head</span><span>Hover to follow it. Click a line to jump to where it runs (Shift: back)</span></div>
+  <div class="hrow" style="grid-template-columns:1fr;gap:3px;padding:5px 0"><span style="justify-self:start;font:600 10.5px/15px var(--sans);color:var(--ink);background:var(--panel);border:1px solid var(--border);border-radius:999px;padding:0 7px">decays to &amp;arr[0]</span><span>On a line, and on the array's box when that line runs: the array is used as a value (passed to a function, put in a pointer, in arithmetic, printed with %p), so it turns into a pointer to its first element. A pointer into an array says <b>sizeof here is 8 (a pointer), sizeof(arr) in main is 32</b></span></div>
   <h3>Line in words</h3>
   <div class="hrow"><span class="sw" style="background:#F8FAFC;border:1px solid #D5DEE8;border-left:4px solid #7C8BA1"></span><span>What the line that just ran did, in plain words, with the real values. Turn it off in View</span></div>
   <h3>Assembly</h3>
@@ -1210,6 +1212,42 @@ function viewBase(u,v,w){                                        /* u is the arr
   const off=u.value-v.addr, span=v.kind==="array"?Math.floor(v.size/w)*w:v.size;
   return off>=0&&off<=span&&off%w===0?off/w:null;
 }
+/* ---------- array decay: an array used as a value turns into a pointer to its first element, &arr[0] ---------- */
+let ARRN=null, DKC=null;
+function arrNames(){                                             /* function -> name -> the array variable it names there (globals: in every function that doesn't hide them) */
+  if(ARRN&&ARRN.t===TRACE) return ARRN; const m=new Map(), G=new Map(), other=new Map();
+  TRACE.steps.forEach(s=>s.frames.forEach(f=>f.vars.forEach(v=>{
+    const arr=v.kind==="other"&&!!dimsOf(v.type), M=f.globals?G:arr?(m.get(f.func)||m.set(f.func,new Map()).get(f.func)):(other.get(f.func)||other.set(f.func,new Set()).get(f.func));
+    if(!arr){ if(!f.globals) M.add(v.name); return; }
+    if(!M.has(v.name)) M.set(v.name,{name:v.name,type:v.type,size:v.size,fn:f.globals?null:f.func}); })));
+  return ARRN={t:TRACE,m,G,other}; }
+function decaySites(l){                                          /* the arrays that decay on line l: [{name, at, A}] */
+  if(!SRC||!TRACE) return [];
+  if(!DKC||DKC.src!==SRC||DKC.t!==TRACE) DKC={src:SRC,t:TRACE,m:new Map()};
+  if(DKC.m.has(l)) return DKC.m.get(l);
+  if(!FNL) FNL=fnOfLines();
+  const fn=FNL[l-1], N=arrNames(), code=codeAt(l), out=[];
+  if(fn){ const own=N.m.get(fn)||new Map(), hid=N.other.get(fn)||new Set(), names=new Map(own);
+    N.G.forEach((A,k)=>{ if(!names.has(k)&&!hid.has(k)) names.set(k,A); });
+    names.forEach((A,name)=>{ for(const m of code.matchAll(new RegExp(`(?<![\\w.])${name}\\b`,"g"))){
+      const pre=code.slice(0,m.index), post=code.slice(m.index+name.length);
+      if(/(?:->|\.)\s*$/.test(pre)) continue;                    /* x.arr, p->arr: a field, not this array */
+      if(/(?:^|[^&])&\s*$/.test(pre)) continue;                  /* &arr: the whole array's address, no decay */
+      if(/\b(?:sizeof|_Alignof|typeof|__typeof__)\s*\(?\s*$/.test(pre)) continue;   /* sizeof(arr): the whole array */
+      if(/^\s*[\[(]/.test(post)) continue;                      /* arr[i]: indexing; int arr[8]: its declaration */
+      if(!out.some(x=>x.name===name)) out.push({name,at:m.index,A}); } }); }
+  DKC.m.set(l,out); return out; }
+const decayTip=(x,fn)=>{ const A=x.A, el=elemOf(A.type);
+  return `${x.name} is an array (${A.type}), but here it's used as a value, so C turns it into a pointer to its first element: &${x.name}[0], ${/^[aeiou]/i.test(el)?"an":"a"} ${el} *.\n`+
+    `sizeof(${x.name}) is ${A.size}${A.fn?` in ${A.fn}`:""}, but that pointer is only 8 bytes: a function that gets it can't tell how long the array is.`; };
+function decayNote(s,v){                                         /* a pointer into a stack (or global) array: "sizeof here is 8 (a pointer)", "sizeof(arr) in main is 32" */
+  if(v.kind!=="ptr"||v.init===false||!v.value) return null;
+  const T=bare(v.target);
+  for(const f of s.frames) for(const A of f.vars){
+    if(A===v||A.kind!=="other"||!A.addr||!dimsOf(A.type)||bare(elemOf(A.type))!==T) continue;
+    if(v.value<A.addr||v.value>A.addr+A.size) continue;
+    return {A,fn:f.globals?null:f.func,l1:`sizeof here is ${v.size||8} (a pointer),`,l2:`sizeof(${A.name})${f.globals?"":` in ${f.func}`} is ${A.size}`}; }
+  return null; }
 /* ---------- index expressions: a[n-1-i], a[(i+2) % n], a[2*i], a[a[i]], bag->data[i] ---------- */
 function memRead(st,a,w){                                        /* w bytes at address a on step st: from a variable or a live heap block */
   for(const f of st.frames) for(const v of f.vars) if(v.addr&&v.bytes&&a>=v.addr&&a+w<=v.addr+v.size){ const b=hx(v.bytes).slice(a-v.addr,a-v.addr+w); if(b.length===w) return b; }
@@ -1520,9 +1558,11 @@ function arrPrep(){                                              /* one box widt
       FL(v).forEach(g=>{ if(isArrF(g)) one(s,f,fieldArr(v,g),f.func+"|"+v.name+"|"+g.name); }); }));   /* local.buf */
     s.heap.forEach(n=>{ if(n.kind!=="array"&&n.fields&&!n.freed) FL(n).forEach(g=>{ if(isArrF(g)) one(s,null,fieldArr(n,g),"h"+n.addr+"|"+g.name); }); });
     s.heap.forEach(n=>{ if(n.kind==="array"){ heapArr=true; one(s,null,n,"h"+n.addr+"|"+n.type); } }); });
+  const dk=new Map();                                             /* pointers into an array: how wide their sizeof note is */
+  TRACE.steps.forEach(s=>s.frames.forEach(f=>f.vars.forEach(v=>{ const d=decayNote(s,v); if(d){ const k=f.func+"|"+v.name+"|"+v.type; dk.set(k,Math.max(dk.get(k)||0,d.l1.length,d.l2.length)); } })));
   const RH=32+rows*14, AFH=66+Math.max(1,rows)*14;                /* a 2D array's rows: slots, then room for ↑j. AFH: an array field: its name, [i], slots, ↑i */
   big.forEach(v=>{ sh=Math.max(sh,44+FL(v).reduce((t,g)=>t+(isArrF(g)?AFH:16),0)+20); });
-  return ARRP={t:TRACE,src:SRC,simple,cw,rows,heapArr,hdr,RH,AFH,sh,ext:(hdr?16:0)+(gR-1)*RH+(nf-1)*16};   /* ext: how much taller the stack boxes get */
+  return ARRP={t:TRACE,src:SRC,simple,cw,rows,heapArr,hdr,RH,AFH,sh,dk,ext:(hdr?16:0)+(gR-1)*RH+(nf-1)*16};   /* ext: how much taller the stack boxes get */
 }
 function sysSlot(f,a,fb,lo){                                     /* return addr, saved rbp, stack canary, or not used */
   if(a===f.rbp+8) return {name:"return addr",tip:"where this function returns to"};
@@ -2067,6 +2107,9 @@ function lineWords(i){
     else if(/^}/.test(code)) say(`Goes to line ${S.line}.`);
     else { const ch=[...touched(i).ch].filter(k=>k.startsWith("v:")||/^h:\d+:/.test(k));
       if(ch.length) say(ch.slice(0,4).map(k=>`${kc(boxName(S,k,fn))} is now ${kc(boxVal(S,k))}`).join(", ")+"."); } }
+  /* an array used as a value: it decays */
+  if(!RA.ret) decaySites(RA.line).forEach(x=>{ const v=fr.vars.find(u=>u.name===x.name&&u.kind==="other")||(P.frames.find(f=>f.globals)||{vars:[]}).vars.find(u=>u.name===x.name);
+    say(`${kc(x.name)} decays to ${kc("&"+x.name+"[0]")}: used as a value, an array becomes a pointer to its first element${v?`, ${kc(show(v.addr))}`:""}. sizeof(${x.name}) is ${x.A.size}, but the pointer is 8 bytes.`); });
   /* what a library call did inside, as gdb's watchpoints saw it */
   libWords(i).forEach(say);
   /* what it left behind */
@@ -2107,7 +2150,7 @@ function renderCards(s){
   const TT=touched(at), CH=TT.ch, R=reachable(s), inner=s.frames[0], RC=reach(s), CI=callInfo(s), RET=retInfo(s);
   const AP=arrPrep(), RAc=ranAt(at), PST=at>0?TRACE.steps[at-1]:null, varAt={};                 /* AP.rows: lines of ↑i marks an array needs */
   s.frames.forEach(f=>f.vars.forEach(v=>{ if(v.addr) varAt[v.addr]=v; }));
-  const LL=listLines(s), LLN=LL.flatMap(l=>[l,...(l.notes||[]).map(note=>({note}))]), DC=dllCheck(s), SLOTW=184, SLOTH=Math.max(86+AP.rows*14+AP.ext,AP.sh), CW=218, STEP=236, FH=36, DIM=' opacity="0.22"';
+  const LL=listLines(s), LLN=LL.flatMap(l=>[l,...(l.notes||[]).map(note=>({note}))]), DC=dllCheck(s), SLOTW=184, SLOTH=Math.max(86+AP.rows*14+AP.ext,AP.sh,AP.dk.size?118:0), CW=218, STEP=236, FH=36, DIM=' opacity="0.22"';
   const HOPC=["#BFDBFE","#93C5FD","#3B82F6","#1D4ED8"], hopc=d=>HOPC[Math.min(d,3)];          /* own, 1, 2, 3+ hops away */
   const EX=e=>` data-ex="${esc(e)}"`;                                                        /* hover it: its hops light up */
   const isNew=f=>at>0&&f===inner&&TRACE.steps[at-1].frames.length<s.frames.length;
@@ -2260,6 +2303,7 @@ function renderCards(s){
     const ab={x0:bx+g.x0,cw:g.cw,n,shown:g.shown,moreL:bx+g.moreL,moreW:g.moreW,endL:bx+g.endL,endW:g.endW,ew:A.w};   /* the same, on the page */
     const H=A.chr||v.cstrs?16:0, CHh=A.sf?24+(A.sf.length-1)*16:24;   /* a string: its text on a line above the slots */
     const body=arrBody(v,A,g,f,whoA,ab,by+37+H,by+37+H+CHh+15);
+    const dks=RAc&&RAc.fr&&!RAc.ret&&RAc.fr.vars.some(u=>u.addr===v.addr&&u.name===v.name)?decaySites(RAc.line).find(x=>x.name===v.name):null;   /* this line decays it */
     let head="";
     if(A.chr){ const b=hx(v.bytes).map(x=>parseInt(x,16)), z=b.indexOf(0), upto=z<0?b.length:z;
       const ok=!unset&&(!v.eset||Array.from({length:Math.min(upto+1,n)},(_,k)=>k).every(k=>v.eset[k])), q=JSON.stringify(String.fromCharCode(...b.slice(0,upto)));
@@ -2280,13 +2324,14 @@ function renderCards(s){
       `<text x="${bx+sl.w-8}" y="${by+17}" font-size="10" text-anchor="end" fill="${MUT}">${esc(v.type)}</text>`+head+body.h+
       (out?`<text x="${bx+11}" y="${by+SLOTH-8}" font-size="10" font-style="italic" fill="${MUT}">not reachable from here</text>`
          :rc&&rc.v!==v.name?`<text x="${bx+11}" y="${by+SLOTH-8}" font-size="11" font-weight="700" fill="${REACH}" ${MONO}${EX(rc.v)}>= ${esc(rc.v)}</text>`:"")+
-      (body.empty?`<text x="${bx+sl.w-8}" y="${by+SLOTH-8}" font-size="11.5" font-style="italic" text-anchor="end" fill="${MUT}">${esc(body.empty)}</text>`   /* lo > hi: nothing left */
+      (dks?`<g data-tip="${esc(decayTip(dks))}"><rect x="${bx+sl.w-8-(6.9*(13+v.name.length)+14)}" y="${by+SLOTH-21}" width="${6.9*(13+v.name.length)+14}" height="16" rx="8" fill="${PNL}" stroke="${BORDER}"/><text x="${bx+sl.w-8-(6.9*(13+v.name.length)+14)/2}" y="${by+SLOTH-9}" font-size="11.5" font-weight="700" text-anchor="middle" fill="${INK}" ${MONO}>decays to &amp;${esc(v.name)}[0]</text></g>`   /* the line that ran used it as a value */
+      :body.empty?`<text x="${bx+sl.w-8}" y="${by+SLOTH-8}" font-size="11.5" font-style="italic" text-anchor="end" fill="${MUT}">${esc(body.empty)}</text>`   /* lo > hi: nothing left */
         :v.decl?`<text class="hov" x="${bx+sl.w-8}" y="${by+SLOTH-8}" font-size="10" text-anchor="end" fill="${MUT}" ${MONO}>line ${v.decl}</text>`:"")+`</g>`;
   };
   [...s.frames].reverse().forEach(f=>{                           /* address order: main's frame on the left */
     const vars=[...f.vars].sort((a,b)=>(b.addr||0)-(a.addr||0));
     SFN=f.func;
-    let slots=vars.map(v=>{ const A=arrSlots(v); if(!A) return v.fields&&v.kind==="other"?{v,addr:v.addr||0,w:structW(v),st:true}:{v,addr:v.addr||0,w:SLOTW};   /* an array gets one box per element, a struct one line per field */
+    let slots=vars.map(v=>{ const A=arrSlots(v); if(!A) return v.fields&&v.kind==="other"?{v,addr:v.addr||0,w:structW(v),st:true}:{v,addr:v.addr||0,w:Math.max(SLOTW,Math.ceil(22+6.9*(AP.dk.get(f.func+"|"+v.name+"|"+v.type)||0)))};   /* a pointer into an array: room for its sizeof note */   /* an array gets one box per element, a struct one line per field */
       if(A.grid){ const cw=AP.cw.get(f.func+"|"+v.name+"|"+v.type)||30, RG=A.grid.RS.map(RA=>arrGeo(RA,cw,"","",0)), gx=11+44+30;   /* row marks, [i], then the cells */
         const head=11+7.6*v.name.length+14+6.9*v.type.length+8+6.9*("at "+show(v.addr)).length+10;
         return {v,addr:v.addr||0,w:Math.ceil(Math.max(SLOTW,head,gx-11+Math.max(...RG.map(r=>r.endL+r.endW))+8)),A,g:{cw,RG,gx}}; }
@@ -2350,7 +2395,11 @@ function renderCards(s){
         (ci?`<text x="${bx+11}" y="${by+76}" font-size="10" font-weight="700" fill="${AMB}" ${MONO}>${esc(ci.text)}</text>`                     /* the call: where this came from */
            :out?`<text x="${bx+11}" y="${by+76}" font-size="10" font-style="italic" fill="${MUT}">not reachable from here</text>`
            :lit?lit:(rc?`<text class="hov" x="${bx+11}" y="${by+76}" font-size="10" fill="${MUT}" ${MONO}${EX(rc.v)}>change: <tspan fill="${REACH}" font-weight="700">${esc(rc.v)} = …;</tspan></text>`:"")+
-            (v.decl?`<text class="hov" x="${bx+SLOTW2-8}" y="${by+76}" font-size="10" text-anchor="end" fill="${MUT}" ${MONO}>line ${v.decl}</text>`:""))+`</g>`;
+            (v.decl?`<text class="hov" x="${bx+SLOTW2-8}" y="${by+76}" font-size="10" text-anchor="end" fill="${MUT}" ${MONO}>line ${v.decl}</text>`:""))+
+        `</g>`;
+      const dn=decayNote(s,v);                                     /* sizeof here is 8 (a pointer), sizeof(arr) in main is 32: over the arrows, so its own arrow doesn't cross it out */
+      if(dn) labels+=`<g data-tip="${esc(`${v.name} points into ${dn.A.name}, an array${dn.fn?` of ${dn.fn}`:""}.\n${dn.l1} ${dn.l2}: sizeof(${v.name}) is the pointer's own size, not the array's, so pass its length along`)}"${F?DIM:""}><rect x="${bx+8}" y="${by+84}" width="${6.9*Math.max(dn.l1.length,dn.l2.length)+6}" height="30" rx="3" fill="${C?AMBG:"#fff"}" opacity="0.92"/>`+
+        `<text x="${bx+11}" y="${by+96}" font-size="11.5" fill="${MUT}" ${MONO}>${esc(dn.l1)}</text><text x="${bx+11}" y="${by+110}" font-size="11.5" fill="${MUT}" ${MONO}>${esc(dn.l2)}</text></g>`;
     });
     if(SP){                                                        /* pills under the slots, and a bracket under the red zone */
       spMarks.forEach(k=>k.m.forEach(t=>{ const pw=t.length*6.4+12;
@@ -2926,6 +2975,7 @@ function memModel(s){
           r.nm.push(`${esc(v.name)}<small>${esc(v.type.replace(/struct /g,""))}</small>`);
           r.vl.push(junk?{name:v.name,txt:"??",cls:"junk"}:v.kind==="ptr"?{name:v.name,...ptrTxt(raw)}:isFn(v)?{name:v.name,txt:fnTxt(v),fn:v.value&&v.fn}:{name:v.name,txt:v.kind==="int"?String(v.value):"—"});
           if(!junk&&isFn(v)) r.tip=fnTip(v).trim();
+          const dn=!junk&&decayNote(s,v); if(dn) r.tip=((r.tip||"")+`\n${dn.l1} ${dn.l2}`).trim();
           if(junk) r.tip="not set yet: these are leftover bytes";
           const rc=RC["v:"+v.addr]; if(rc) r.tip=((r.tip||"")+reachTip(rc,who)).trim();
           r.tip=(`${v.name}: ${f.globals?"a global":`${v.arg?"parameter":"local"} of ${f.func}`}${v.decl?`, line ${v.decl}`:""}\n`+(r.tip||"")).trim();
@@ -3179,7 +3229,7 @@ function render(){
   if(SRC){
     if(!FNL) FNL=fnOfLines();
     const bugL=new Set(BUGS.map(b=>b.line));
-    $("code").innerHTML=SRC.map((l,i)=>`<div class="cl${i+1===ran?" hi":""}${i+1===s.line?" nx":""}${bugL.has(i+1)?" bug":""}" data-l="${i+1}"${bugL.has(i+1)?' title="a bug happens on this line: click to jump there"':""}><span class="ln">${i+1}</span><span class="src">${exLine(l)||" "}</span></div>`).join("");   /* one span, so leading spaces survive */
+    $("code").innerHTML=SRC.map((l,i)=>`<div class="cl${i+1===ran?" hi":""}${i+1===s.line?" nx":""}${bugL.has(i+1)?" bug":""}" data-l="${i+1}"${bugL.has(i+1)?' title="a bug happens on this line: click to jump there"':""}><span class="ln">${i+1}</span><span class="src">${exLine(l)||" "}</span>${decaySites(i+1).map(x=>`<span class="dk" title="${esc(decayTip(x))}">decays to &amp;${esc(x.name)}[0]</span>`).join("")}</div>`).join("");   /* arr used as a value: it decays */   /* one span, so leading spaces survive */
     const pre=$("code"), hi=pre.querySelector(".hi")||pre.querySelector(".nx");
     if(hi) pre.scrollTop=hi.offsetTop-pre.offsetTop-pre.clientHeight/2;                        /* scroll the code only, never the page */
   }
