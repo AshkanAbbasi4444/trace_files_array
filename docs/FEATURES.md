@@ -399,6 +399,30 @@ a pointer, usually called **`next`**, to the next one.
 
 - **Try it:** `tests/bag_typedef.c`, **step 21**.
 
+### Function pointers
+
+- A **function pointer** holds the **address of a function**, like the field `int (*op)(int, int)`.
+  `c.op(6, 7)` calls whichever function it holds right now.
+- Its box shows **`→ add()`**, the function it points to, instead of a number (`NULL` when it's NULL).
+- **Click `→ add()`** (in the cards, the memory view or the ladder): the code pane **jumps to `add`** and flashes its first line.
+- **Line in words** says which function a call went to: *"Calls `add` through `c.op`: a function pointer that holds
+  `add`'s address."* An assignment says *"Now calling `c.op(…)` runs `add()`"*.
+- The **printf panel** prints it with **`%p`**, like any pointer: `printf("c.op = %p\n", (void *)c.op);`.
+- In the trace, `trace.py` gives every variable or field that is a function pointer **`"kind": "func"`**, its address
+  as `"value"`, and the function's name as **`"fn"`** (`null` when it's NULL).
+
+![c.op = add: the op field now shows → add()](img/fn-pointer.png)
+
+![The call through c.op: "Calls add through c.op"](img/fn-pointer-call.png)
+
+![Click → mul(): the code pane jumps to mul on line 14](img/fn-pointer-jump.png)
+
+- **Try it:** `tests/fn_pointer.c`, **step 5** (`c.op = add`), **step 6** (the call through `c.op`), **step 11** (`c.op = mul`,
+  then click `→ mul()`).
+- **Limits:**
+  - An **array** of function pointers (`int (*ops[2])(int, int)`) is shown as plain text.
+  - A pointer to a **library** function (like `puts`) shows its name, but there is no code to jump to.
+
 ### Trees
 
 - A struct with **`left` and `right`** (or `lchild`, `rchild`) pointers to its own type is drawn as a **tree**:
@@ -786,6 +810,7 @@ a pointer, usually called **`next`**, to the next one.
 | `bad_free.c` | `free()` of a stack address: the bad-free banner, glibc aborts |
 | `bag.c` | `struct Bag { int *data; int size; }`: a field pointing into a `calloc`'d array, `mid = data + 2` |
 | `bag_typedef.c` | The same with an anonymous `typedef struct { … } Bag;` |
+| `fn_pointer.c` | A struct with a function-pointer field, set to `add` then `mul` and called through it |
 | `board.c` | `char board[3][3]`: a char grid on the stack |
 | `circular.c` | A circular list of 3 nodes, walked, then cut and freed |
 | `deep_recursion.c` | 13 frames on the stack at once: frames wrap into rows |
@@ -845,5 +870,4 @@ Features that don't exist yet:
 - **bool**: shows as **0 / 1**, not `true` / `false`.
 - **qsort**: seeing what `qsort` does to an array, and the calls to your compare function.
 - **Binary view**: the bits of a number, `0b0000_1010`.
-- **Function pointers**: shown as a plain address, with no arrow to the function.
 - **Bit fields**: no special support. A field like `int flag : 1` is read as if it were a whole `int`.

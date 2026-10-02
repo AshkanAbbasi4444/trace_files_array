@@ -27,6 +27,28 @@ USED = []                              # (start, usable bytes) of every used hea
 def is_ptr(t):  return t.strip_typedefs().code == gdb.TYPE_CODE_PTR
 def scalar(t):  return t.strip_typedefs().code in (gdb.TYPE_CODE_INT, gdb.TYPE_CODE_ENUM,
                                                    gdb.TYPE_CODE_CHAR, gdb.TYPE_CODE_BOOL)
+def is_fptr(t):                        # int (*cmp)(int, int): a pointer to a function
+    t = t.strip_typedefs()
+    return t.code == gdb.TYPE_CODE_PTR and t.target().strip_typedefs().code == gdb.TYPE_CODE_FUNC
+FN_NAMES = {}
+def fn_name(a):
+    """the name of the function at address a (a function pointer's value): the symbol gdb has there, or None"""
+    if not a: return None
+    if a not in FN_NAMES:
+        name = None
+        try:                                             # the ELF symbol: puts, not libc's own alias __GI__IO_puts
+            m = re.match(r"([\w.@]+)(?: \+ \d+)? in section", gdb.execute("info symbol %d" % a, to_string=True))
+            if m: name = m.group(1)
+        except gdb.error: pass
+        if not name:
+            try:
+                b = gdb.block_for_pc(a)
+                while b and not b.function: b = b.superblock
+                if b: name = b.function.name
+            except (gdb.error, RuntimeError): pass
+        FN_NAMES[a] = name
+    return FN_NAMES[a]
+def kind_of(t):  return "func" if is_fptr(t) else "ptr" if is_ptr(t) else "int" if scalar(t) else "other"
 TYPES = {}                             # struct key -> gdb.Type, so an anonymous typedef struct can be found again
 def sname(t):
     """the key a struct type is recorded and found by: "struct node", or the typedef name of an anonymous one ("Bag")"""
@@ -231,12 +253,11 @@ def fields_of(v, t, depth=1):
     for f in t.strip_typedefs().fields():
         if f.name is None: continue
         fv = v[f.name]; ft = fv.type.strip_typedefs()
-        if ft.code == gdb.TYPE_CODE_PTR:   kind, val = "ptr", int(fv)
-        elif scalar(ft):                   kind, val = "int", int(fv)
-        else:                              kind, val = "other", None
+        kind = kind_of(ft); val = int(fv) if kind in ("ptr", "func", "int") else None
         fd = {"name": f.name, "type": str(f.type), "kind": kind, "value": val,
               "offset": f.bitpos // 8, "size": f.type.sizeof,
-              "target": str(ft.target()) if kind == "ptr" else None}
+              "target": str(ft.target()) if kind in ("ptr", "func") else None}
+        if kind == "func": fd["fn"] = fn_name(val)             # the function it points to
         if is_rec(ft) and depth < NEST_MAX: fd["fields"] = fields_of(fv, ft, depth + 1)   # struct point pos: x and y
         fields.append(fd)
     return fields
@@ -276,12 +297,13 @@ def var_entry(out, sym, v):
     a = int(v.address) if v.address else None
     out.append({"name": sym.name, "type": str(t), "addr": a,
                 "value": int(v) if (is_ptr(t) or scalar(t)) else None,
-                "kind": "ptr" if is_ptr(t) else ("int" if scalar(t) else "other"),
+                "kind": kind_of(t),
                 "struct": st,
                 "size": t.sizeof, "bytes": raw(a, t.sizeof),
                 "arg": bool(sym.is_argument),      # parameters start with real values
                 "target": str(t.strip_typedefs().target()) if is_ptr(t) else None,   # one star down
                 "decl": sym.line})                 # the line it was declared on
+    if out[-1]["kind"] == "func": out[-1]["fn"] = fn_name(int(v))   # the function it points to: its name, None for NULL
     d = ptr_desc(t)
     if d and is_ptr(t): ROOTS.append((int(v), d))
     if is_rec(t):                                        # a struct on the stack: its fields, nested ones too
@@ -297,7 +319,7 @@ def var_entry(out, sym, v):
         while base.code == gdb.TYPE_CODE_ARRAY: base = base.target().strip_typedefs()
         if base.code == gdb.TYPE_CODE_STRUCT:                # struct pair a[5]: what each element holds
             out[-1]["elem_fields"] = [{"name": f.name, "type": str(f.type), "offset": f.bitpos // 8, "size": f.type.sizeof,
-                                       "kind": "ptr" if is_ptr(f.type) else ("int" if scalar(f.type) else "other")}
+                                       "kind": kind_of(f.type)}
                                       for f in base.fields() if f.name]
             out[-1]["elem_size"] = base.sizeof
 
@@ -366,7 +388,7 @@ def signature(frame):
     try:
         blk = frame.block()
         while blk and not blk.function: blk = blk.superblock
-        join = lambda t, n: t + ("" if t.endswith("*") else " ") + n
+        join = lambda t, n: t.replace("(*)", "(*%s)" % n, 1) if "(*)" in t else t + ("" if t.endswith("*") else " ") + n   # int (*cmp)(int, int)
         ps = [join(str(sym.type), sym.name) for sym in blk if sym.is_argument]
         return "%s(%s)" % (join(str(frame.function().type.target()), frame.name()), ", ".join(ps))
     except (gdb.error, AttributeError, RuntimeError): return None

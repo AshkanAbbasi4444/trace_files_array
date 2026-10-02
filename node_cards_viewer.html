@@ -159,6 +159,7 @@ pre{margin:0;height:calc(100vh - var(--barh,52px));overflow:auto;background:#FBF
 .ladder td{padding:1px 16px 1px 0;white-space:nowrap}
 .ladder td.e{color:#1F5FA0;font-weight:700}
 .ladder td.t{color:var(--muted)}
+.ladder td[data-fn]{cursor:pointer;text-decoration:underline dotted #1F5FA0;text-underline-offset:3px}
 .ladder .lh{font:11.5px system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--muted);margin-top:4px}
 .ladder .lx{position:absolute;right:10px;top:2px;cursor:pointer;color:var(--muted);font:18px system-ui,sans-serif}
 #pic [data-lad]{cursor:pointer}
@@ -236,6 +237,10 @@ button.icon{width:30px;padding:4px 0;font-weight:700;border-radius:50%}
 .mz{display:flex;justify-content:space-between;align-items:center;padding:3px 6px;font-size:13px;color:var(--ink)}
 .mr{width:100%;margin-top:10px;font-size:12.5px}
 .cl{cursor:pointer}
+.cl.fnfl{animation:fnfl 2s ease-out}
+@keyframes fnfl{0%,45%{background:#DBEAFE;box-shadow:inset 3px 0 0 var(--reach)}}
+#pic [data-fn]{cursor:pointer}
+#pic [data-fn]:hover{text-decoration:underline}
 .fr.sp{padding-left:66px;position:relative}
 .r{position:relative}
 .spm{position:absolute;left:-62px;top:2px;font:700 10px/16px var(--sans);color:#fff;background:var(--ink);border-radius:8px;padding:0 6px;white-space:nowrap}
@@ -365,6 +370,7 @@ button.icon{width:30px;padding:4px 0;font-weight:700;border-radius:50%}
   <div class="hrow"><span class="sw txt" style="font-weight:400;color:#5B6B82">at 0x…</span><span>Under every box: the address where it lives (the simple one, or the real one: see View)</span></div>
   <div class="hrow" style="grid-template-columns:1fr;gap:3px;padding:5px 0"><span class="sw txt" style="font-weight:400;width:auto;white-space:nowrap">printf("*ptr = %d\n", *ptr);  → 42</span><span>Hover a box, a field or an array slot: the printf lines that print its value and its address from the running function, and what they print now. Click it to pin them, with a Copy button per line (Esc lets go)</span></div>
   <div class="hrow"><span class="sw txt" style="font-size:11.5px;color:#5B6B82;border:1px solid #A9B6C6;border-radius:999px;background:#F1F5F9;padding:0 6px">read-only</span><span>A char * to a string literal: the text it points to lives in read-only memory</span></div>
+  <div class="hrow"><span class="sw txt" style="font-size:12px;width:auto;white-space:nowrap">→ add()</span><span>A function pointer, like <b>int (*op)(int, int)</b>: the function it holds. Click it to see that function in the code. printf prints it with %p</span></div>
   <div class="hrow"><svg width="56" height="22" aria-hidden="true"><rect x="2" y="4" width="8" height="14" rx="2" fill="#BFDBFE"/><rect x="14" y="4" width="8" height="14" rx="2" fill="#93C5FD"/><rect x="26" y="4" width="8" height="14" rx="2" fill="#3B82F6"/><rect x="38" y="4" width="8" height="14" rx="2" fill="#1D4ED8"/></svg><span>Bar on the left of a box: how many hops away it is (own, 1, 2, 3+)</span></div>
   <div class="hrow"><svg width="56" height="22" aria-hidden="true"><rect x="2" y="2" width="5" height="18" rx="2.5" fill="#334155"/><rect x="16" y="2" width="5" height="18" rx="2.5" fill="#0F766E"/><rect x="30" y="2" width="5" height="18" rx="2.5" fill="#6D28D9"/></svg><span>Each function has its own colour; main is always slate</span></div>
  </div><div>
@@ -454,6 +460,39 @@ function show(a){
 }
 const real=a=>a===null||a===undefined?"":"0x"+a.toString(16);
 
+/* ---------- function pointers: int (*op)(int, int) holds the address of a function: shown as → add() ---------- */
+const isFn=u=>!!u&&u.kind==="func";
+const fnTxt=u=>!u.value?"NULL":u.fn?`→ ${u.fn}()`:`→ ${show(u.value)}`;     /* trace.py names the function; an unknown address stays an address */
+const fnAttr=u=>isFn(u)&&u.value&&u.fn?` data-fn="${esc(u.fn)}"`:"";         /* click it: that function in the code */
+const fnTip=u=>isFn(u)&&u.value?`\npoints to the function ${u.fn?u.fn+"()":"at "+show(u.value)}: a function pointer holds the address of a function's first instruction`+(u.fn?`\nclick it to see ${u.fn}() in the code`:""):"";
+const FNMX=new WeakMap();
+function fnSeen(){                                                /* every function a pointer holds in this trace: {max: the longest name, at: address -> name} */
+  if(!TRACE) return {max:6,at:new Map()}; if(FNMX.has(TRACE)) return FNMX.get(TRACE); const r={max:4,at:new Map()};
+  const see=L=>(L||[]).forEach(u=>{ if(u.fn){ r.max=Math.max(r.max,u.fn.length); r.at.set(u.value,u.fn); } see(u.fields); });
+  TRACE.steps.forEach(s=>{ s.frames.forEach(f=>see(f.vars)); s.heap.forEach(n=>see(n.fields)); });
+  FNMX.set(TRACE,r); return r; }
+const fnMax=()=>fnSeen().max;
+let FNDEF=null;
+function fnDefLine(name){                                         /* the line where function name is defined in the .c file, or 0 */
+  if(!SRC) return 0;
+  if(!FNDEF||FNDEF.src!==SRC) FNDEF={src:SRC,m:new Map()};
+  if(FNDEF.m.has(name)) return FNDEF.m.get(name);
+  const head=new RegExp(`^(?:[A-Za-z_][\\w\\s*]*?[\\s*])?${name}\\s*\\(`), any=new RegExp(`(?:^|[^\\w.>])${name}\\s*\\(`);
+  let at=0;
+  for(const re of [head,any]){                                    /* at the start of a line first, then anywhere */
+    for(let l=1;l<=SRC.length&&!at;l++){ const c=codeAt(l); if(!re.test(c)) continue;
+      let t=c.slice(c.search(re)); for(let k=l+1;k<=Math.min(SRC.length,l+8)&&!/[;{]/.test(t);k++) t+=" "+codeAt(k);   /* a signature over several lines */
+      if((t.match(/[;{]/)||[])[0]==="{") at=l; }                  /* a prototype ends with ; a definition goes on with { */
+    if(at) break; }
+  FNDEF.m.set(name,at); return at;
+}
+function jumpToFn(name,e){                                        /* scroll the code pane to that function and flash its line */
+  const l=fnDefLine(name), pre=$("code"), el=l&&pre.querySelector(`.cl[data-l="${l}"]`);
+  if(!el){ tipAt(e,!SRC?`open the .c file to see ${name}()`:`${name}() isn't in your .c file: it comes from a library`); setTimeout(()=>{ tip.style.display="none"; },1800); return; }
+  pre.scrollTop=el.offsetTop-pre.offsetTop-pre.clientHeight/3;
+  pre.querySelectorAll(".fnfl").forEach(x=>x.classList.remove("fnfl")); void el.offsetWidth; el.classList.add("fnfl");
+}
+
 /* ---------- structs inside structs: a block's or a struct variable's fields, flattened: pos, then pos.x and pos.y ---------- */
 const FLC=new WeakMap();
 function FL(x){                                                   /* top-level fields are the trace's own objects; nested ones get a path name and an offset from x's start */
@@ -541,7 +580,8 @@ const elemOf=t=>{ const d=dimsOf(t); return d?subEl(d):(t||""); };              
 const codeAt=l=>SRC?(SRC[l-1]||"").replace(/\/\/.*|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'/g," "):"";
 function writes(code,name){                                     /* does this line assign to name? */
   const n=name.replace(/\W/g,"");
-  return new RegExp(`(^|[^\\w.>])${n}\\s*(\\[[^\\]]*\\]\\s*|\\.\\s*[A-Za-z_]\\w*\\s*)*(=(?!=)|[-+*/%&|^]=|<<=|>>=|\\+\\+|--)|(\\+\\+|--)\\s*${n}\\b|&\\s*${n}\\b`).test(code);
+  return new RegExp(`(^|[^\\w.>])${n}\\s*(\\[[^\\]]*\\]\\s*|\\.\\s*[A-Za-z_]\\w*\\s*)*(=(?!=)|[-+*/%&|^]=|<<=|>>=|\\+\\+|--)|(\\+\\+|--)\\s*${n}\\b|&\\s*${n}\\b`).test(code)||
+    new RegExp(`\\(\\s*\\*\\s*${n}\\s*\\)\\s*\\([^)]*\\)\\s*=(?!=)`).test(code);   /* int (*cmp)(int, int) = compare; */
 }
 function markInit(t){                                           /* v.init: written since it came into scope */
   const on=t.steps.some(s=>s.frames.some(f=>f.vars.some(v=>"arg" in v)));
@@ -664,7 +704,7 @@ function allNames(s,fr){                                         /* key -> every
 }
 function pfSpec(t){                                              /* the printf conversion for a C type */
   t=bare(t);
-  if(/\*$/.test(t)||/\]$/.test(t)) return {sp:"%p",ptr:true};
+  if(/\*$/.test(t)||/\]$/.test(t)||/\(\s*\*+\s*\)\s*\(/.test(t)) return {sp:"%p",ptr:true};   /* int (*)(int, int): a function pointer, printed like any pointer */
   if(/^(?:unsigned long(?: int)?|long unsigned(?: int)?|size_t|uintptr_t)$/.test(t)) return {sp:"%zu"};
   if(/^(?:unsigned long long|long long unsigned)(?: int)?$/.test(t)) return {sp:"%llu"};
   if(/^long long(?: int)?$/.test(t)) return {sp:"%lld"};
@@ -693,6 +733,8 @@ function cString(s,a){                                           /* the string a
   return out+"…";
 }
 const pfCast=e=>/[-+ ]/.test(e.replace(/->/g,"").replace(/\[[^\]]*\]/g,""))?`(void *)(${e})`:`(void *)${e}`;     /* (void *)ptr, (void *)&p[-1], (void *)(nums + 2) */
+const pfT=u=>isFn(u)?"void (*)(void)":u.type;                     /* binop, a typedef of a function pointer: still %p */
+const pfV=u=>u.kind==="ptr"||u.kind==="int"||isFn(u)?u.value:null;
 function printfFor(s,key,slot){                                  /* {fn, note, val:[{e, t, out, line?}], adr:[…]}: the lines that print one box */
   if(!s.frames.length) return null;
   const inner=s.frames[0], main=s.frames.filter(f=>!f.globals).pop()||inner;
@@ -714,7 +756,7 @@ function printfFor(s,key,slot){                                  /* {fn, note, v
         const F=arr.elem_fields, ea=arr.addr+slot*D.w, set=arr.init!==false&&(!arr.eset||!!arr.eset[slot]);
         (A[key]||[]).forEach(o=>{ const pe=pex(o.v);
           F.forEach((f,fi)=>{ const raw=memRead(s,ea+f.offset,f.size), fs=set&&(!arr.fset||!!arr.fset[slot*F.length+fi]);
-            add(val,`${pe}[${slot}].${f.name}`,f.type,!fs?unsetOut:raw?pfOut(f.type,/\*\s*$/.test(f.type)?num(le(raw)):null,raw.join("")):"?"); });
+            add(val,`${pe}[${slot}].${f.name}`,pfT(f),!fs?unsetOut:raw?pfOut(pfT(f),/\*\s*$/.test(f.type)||isFn(f)?num(le(raw)):null,raw.join("")):"?"); });
           add(adr,`&${pe}[${slot}]`,D.el+" *",show(ea)); add(adr,slot?`${o.v} + ${slot}`:o.v,D.el+" *",show(ea)); });
         return {val,adr}; }
       const set=arr.init!==false&&(!arr.eset||!!arr.eset[slot]), raw=memRead(s,arr.addr+slot*D.w,D.w);
@@ -732,8 +774,8 @@ function printfFor(s,key,slot){                                  /* {fn, note, v
     const L=(A[key]||[]).slice();
     if(b.v&&arrDims(b.v)) fr.vars.forEach(u=>{ if(u.kind==="ptr"&&viewBase(u,b.v,arrDims(b.v).w)===0&&!L.some(o=>o.v===u.name)) L.push({v:u.name,a:u.name}); });   /* a pointer to its start works like its name */
     if(b.v||b.fd){                                                 /* a variable or a struct field */
-      const u=b.v||b.fd, t=u.type, D=b.v&&arrDims(u), unset=u.init===false||(!b.v&&(b.n.init===false||unsetF(b.n,u)));
-      const hex=b.v?u.bytes:fieldHex(b.n,u), out=unset?"?? (not set yet: whatever bytes are there)":pfOut(t,u.kind==="ptr"||u.kind==="int"?u.value:null,hex);
+      const u=b.v||b.fd, t=u.type, tv=pfT(u), D=b.v&&arrDims(u), unset=u.init===false||(!b.v&&(b.n.init===false||unsetF(b.n,u)));
+      const hex=b.v?u.bytes:fieldHex(b.n,u), out=unset?"?? (not set yet: whatever bytes are there)":pfOut(tv,pfV(u),hex);
       L.forEach(o=>{
         const ov=/\W/.test(o.v)?`(${o.v})`:o.v;
         if(D&&D.dims.length===2){ const R=D.dims[0], C=D.dims[1], G=arrSlots(u,true);   /* a 2D array: row by row */
@@ -748,10 +790,10 @@ function printfFor(s,key,slot){                                  /* {fn, note, v
           add(val,o.v,t,(parts?parts.parts.slice(0,n).map((x,i)=>!u.eset||u.eset[i]?x:"??").join(" "):"?")+(D.n>n?" …":""),`for (int i = 0; i < ${D.n}; i++) printf("${pfSpec(D.el).sp||"%d"} ", ${/\W/.test(o.v)?`(${o.v})`:o.v}[i]);`);
           if(o.a!==o.v) add(adr,o.a,t+" *",show(u.addr)); add(adr,`&${/\W/.test(o.v)?`(${o.v})`:o.v}[0]`,D.el+" *",show(u.addr)); if(o.a===o.v) add(adr,o.v,D.el+" *",show(u.addr)); return; }
         if(b.v&&b.v.fields){ const ov=/\W/.test(o.v)?`(${o.v})`:o.v;   /* a struct variable: one line per field */
-          FL(b.v).forEach(f=>{ if(!f.fields) add(val,`${ov}.${f.name}`,f.type,unset||unsetF(b.v,f)?"?? (not set yet: whatever bytes are there)":pfOut(f.type,f.kind==="ptr"||f.kind==="int"?f.value:null,fieldHex(b.v,f))); });
+          FL(b.v).forEach(f=>{ if(!f.fields) add(val,`${ov}.${f.name}`,pfT(f),unset||unsetF(b.v,f)?"?? (not set yet: whatever bytes are there)":pfOut(pfT(f),pfV(f),fieldHex(b.v,f))); });
           add(adr,o.a,t+" *",show(u.addr)); return; }
-        add(val,o.v,t,out);
-        const m=o.v.match(/^(.*)->([\w.]+)$/); if(m) add(val,`(*${m[1]}).${m[2]}`,t,out);   /* head->val is (*head).val, item->pos.x is (*item).pos.x */
+        add(val,o.v,tv,out);
+        const m=o.v.match(/^(.*)->([\w.]+)$/); if(m) add(val,`(*${m[1]}).${m[2]}`,tv,out);   /* head->val is (*head).val, item->pos.x is (*item).pos.x */
         add(adr,o.a,t+" *",show(b.v?u.addr:b.n.addr+u.offset));
         if(u.kind==="ptr"&&/char$/.test(bare(u.target))&&u.value&&!unset){   /* a char *: %s prints the string it points to */
           const str=u.cstr!=null?u.cstr:cString(s,u.value); if(str!=null) add(val,o.v,"char *s",str); } });
@@ -765,7 +807,7 @@ function printfFor(s,key,slot){                                  /* {fn, note, v
       if(D&&isChr(D.el,D.w)){ const str=cString(s,n.addr); if(str!=null) add(val,o.a,"char *s",str); }   /* a char array: %s prints it up to its \0 */
       else if(D){ const k=Math.min(D.n,ARRMAX), parts=arrSlots(n,true);
         add(val,o.v,n.type,(parts?parts.parts.slice(0,k).map((x,i)=>!n.eset||n.eset[i]?x:"??").join(" "):"?")+(D.n>k?" …":""),`for (int i = 0; i < ${D.n}; i++) printf("${pfSpec(D.el).sp||"%d"} ", ${pe}[i]);`); }
-      else FL(n).forEach(fd=>{ if(!fd.fields) add(val,`${pe}->${fd.name}`,fd.type,unsetF(n,fd)?"?? (not set yet: whatever bytes are there)":pfOut(fd.type,fd.kind==="ptr"||fd.kind==="int"?fd.value:null,fieldHex(n,fd))); }); });
+      else FL(n).forEach(fd=>{ if(!fd.fields) add(val,`${pe}->${fd.name}`,pfT(fd),unsetF(n,fd)?"?? (not set yet: whatever bytes are there)":pfOut(pfT(fd),pfV(fd),fieldHex(n,fd))); }); });
     return {val,adr};
   };
   let r=build(inner), fn=inner.func, note="";
@@ -794,14 +836,22 @@ const clip=(t,n)=>t.length>n?t.slice(0,Math.max(1,n-1))+"…":t;      /* at most
 const orText=(a,alts,max)=>alts.length?(a.length+4+alts[0].length<=max?`${a} or ${alts[0]}`:`${a} +${alts.length}`):a;   /* "head or *pp", or "head +1" if too long */
 
 /* ---------- at a call: where each parameter's value came from ---------- */
+function fnCall(code,callee,fr,st){                              /* a call to callee through a function pointer on this line: c.op(…), (*cmp)(…), f(…) */
+  const re=/(\(\s*\*\s*)?([A-Za-z_]\w*(?:\s*(?:->|\.)\s*[A-Za-z_]\w*|\s*\[[^\]]*\])*)(\s*\))?\s*\(/g; let x;
+  if(!fr||!st) return null;
+  while((x=re.exec(code))){ if(!!x[1]!==!!x[3]) continue;        /* (*op)( needs both its parentheses */
+    const ex=x[2].replace(/\s+/g,""), r=evalExpr(st,fr,ex);
+    if(r.r&&isFn(r.r)&&r.r.value&&r.r.fn===callee) return {open:x.index+x[0].length-1,via:x[1]?`(*${ex})`:ex}; }
+  return null;
+}
 function callInfo(s){
   const I={}; if(at===0||s.frames.length<2) return I;
   const P=TRACE.steps[at-1]; if(P.frames.length>=s.frames.length) return I;          /* only on the step a call happens */
   const f=s.frames[0], caller=s.frames[1], params=f.vars.filter(v=>v.arg), cv={};
   caller.vars.forEach(v=>cv[v.name]=v);
-  let args=null; const code=codeAt(P.line), m=code.indexOf(f.func+"(");
+  let args=null; const code=codeAt(P.line), m0=code.indexOf(f.func+"("), cs=m0<0?fnCall(code,f.func,P.frames[0],P):null, m=m0>=0?m0+f.func.length:cs?cs.open:-1;   /* add(…), or c.op(…) when c.op holds add */
   if(m>=0){ let d=0, cur=""; args=[];                                                  /* split the call's arguments */
-    for(const ch of code.slice(m+f.func.length+1)){
+    for(const ch of code.slice(m+1)){
       if(ch===")"&&d===0){ args.push(cur); break; }
       if(ch==="("||ch==="[") d++; else if(ch===")"||ch==="]") d--;
       if(ch===","&&d===0){ args.push(cur); cur=""; } else cur+=ch;
@@ -811,6 +861,7 @@ function callInfo(s){
     const a=args&&args[i]!==undefined?args[i]:null; let r=null;
     if(a){ const am=a.match(/^&\s*([A-Za-z_]\w*)$/);
       if(am&&cv[am[1]]) r={text:`got &${am[1]} from ${caller.func}`,src:cv[am[1]]};
+      else if(isFn(p)&&p.fn&&(a===p.fn||a==="&"+p.fn)&&!cv[a]) r={text:`got the address of ${p.fn}()`};   /* apply(compare, …): a function's name is its address */
       else if(cv[a]) r={text:/\[/.test(cv[a].type)?`got &${a}[0] from ${caller.func}`:`got a copy of ${caller.func}'s ${a}`,src:cv[a]};   /* an array passes its address */
       else r={text:`got a copy of ${a}`}; }
     else { const byAddr=caller.vars.find(v=>v.addr===p.value), byVal=p.kind==="ptr"&&p.value&&caller.vars.find(v=>v.kind==="ptr"&&v.value===p.value);   /* no .c: go by value */
@@ -830,9 +881,10 @@ function ladderHTML(s){
   const top=`<div class="ladder"><span class="lx" title="close">×</span><button class="lw" data-watch="${esc(func)}|${esc(name)}" title="follow ${esc(name)} through the whole trace">Watch ${esc(name)}</button>`;
   if(!v) return top+`<div class="lt"><b>${esc(name)}</b> <span>isn't in scope at this step</span></div></div>`;
   const stackAt={}, fnOf={}; s.frames.forEach(fr=>fr.vars.forEach(u=>{ if(u.addr){ stackAt[u.addr]=u; fnOf[u.addr]=fr.func; } }));
-  const vt=u=>u.init===false?"??":u.kind==="ptr"?show(u.value):u.kind==="int"?String(u.value):"—";
+  const vt=u=>u.init===false?"??":u.kind==="ptr"?show(u.value):isFn(u)?fnTxt(u):u.kind==="int"?String(u.value):"—";
   const par=x=>/^[*&]/.test(x)?`(${x})`:x;
-  const rows=[["&"+v.name,show(v.addr),addrType(v.type),`where ${v.name}'s box is`],[v.name,vt(v),v.type,`what's in ${v.name}'s box`]];
+  const rows=[["&"+v.name,show(v.addr),addrType(v.type),`where ${v.name}'s box is`],[v.name,vt(v),v.type,`what's in ${v.name}'s box`,v.init!==false&&v.fn]];
+  if(isFn(v)&&v.init!==false&&v.value) rows.push(["*"+v.name,(v.fn||show(v.value))+"()",v.target||"",`the function itself: ${v.name}(…) and (*${v.name})(…) both call it`,v.fn]);
   let x=v.name, cur=v, node=null;
   for(let i=0;i<4&&cur.kind==="ptr";i++){
     const nx="*"+x, tg=cur.target||"";
@@ -846,10 +898,10 @@ function ladderHTML(s){
     if(fd){ rows.push([nx,vt(fd),fd.type,`the ${fd.name} field of the node at ${show(b.addr)}`]); x=nx; cur=fd; continue; }
     rows.push([nx,"?",tg,"memory this trace doesn't show"]); break;
   }
-  if(node&&!node.freed) FL(node).forEach(fd=>rows.push([`${par(x.slice(1))}->${fd.name}`,fd.fields?"—":unsetF(node,fd)?"??":vt(fd),fd.type,`its ${fd.name} field`]));
-  if(v.fields) FL(v).forEach(fd=>rows.push([`${v.name}.${fd.name}`,fd.fields?"—":v.init===false||unsetF(v,fd)?"??":vt(fd),fd.type,`its ${fd.name} field`]));   /* a struct variable */
+  if(node&&!node.freed) FL(node).forEach(fd=>rows.push([`${par(x.slice(1))}->${fd.name}`,fd.fields?"—":unsetF(node,fd)?"??":vt(fd),fd.type,`its ${fd.name} field`,!unsetF(node,fd)&&fd.value&&fd.fn]));
+  if(v.fields) FL(v).forEach(fd=>rows.push([`${v.name}.${fd.name}`,fd.fields?"—":v.init===false||unsetF(v,fd)?"??":vt(fd),fd.type,isFn(fd)&&fd.value&&v.init!==false&&!unsetF(v,fd)?`its ${fd.name} field: a pointer to the function ${fd.fn||"at "+show(fd.value)}()`:`its ${fd.name} field`,v.init!==false&&!unsetF(v,fd)&&fd.value&&fd.fn]));   /* a struct variable */
   return top+`<div class="lt">ladder for <b>${esc(v.name)}</b><span>${v.arg?"parameter":"local"} of ${esc(f.func)}${v.decl?`, line ${v.decl}`:""}</span></div><table>`+
-    rows.map(r=>`<tr><td class="e">${esc(r[0])}</td><td>${esc(r[1])}</td><td class="t">${esc(r[2])}</td><td class="t">${esc(r[3])}</td></tr>`).join("")+
+    rows.map(r=>`<tr><td class="e">${esc(r[0])}</td><td${r[4]?` data-fn="${esc(r[4])}" title="see ${esc(r[4])}() in the code"`:""}>${esc(r[1])}</td><td class="t">${esc(r[2])}</td><td class="t">${esc(r[3])}</td></tr>`).join("")+
     `</table><div class="lh">each * follows one arrow · & goes one step back · -> reads a field of the node</div></div>`;
 }
 
@@ -859,7 +911,7 @@ function evalExpr(s, frame, text){                              /* -> {hops:[{bo
   s.frames.forEach(f=>f.vars.forEach(v=>{ if(v.addr) stackAt[v.addr]=v; }));
   let i=0;
   const fail=(m,addr)=>{ const e=new Error(m); e.addr=addr; throw e; };
-  const place=(e,key,u,extra)=>Object.assign({e,key,kind:u.kind,value:u.value,type:u.type,target:u.target,init:u.init,bytes:u.bytes,size:u.size,ef:u.elem_fields},extra);
+  const place=(e,key,u,extra)=>Object.assign({e,key,kind:u.kind,value:u.value,type:u.type,target:u.target,init:u.init,bytes:u.bytes,size:u.size,ef:u.elem_fields,fn:u.fn},extra);
   const SZ={char:1,short:2,int:4,long:8,float:4,double:8};
   const readAt=(a,w)=>{                                          /* w bytes at address a: whose box, and the value */
     for(const f of s.frames) for(const v of f.vars) if(v.addr&&v.bytes&&a>=v.addr&&a+w<=v.addr+v.size){ const b=hx(v.bytes).slice(a-v.addr,a-v.addr+w); return {key:"v:"+v.addr,b}; }
@@ -889,6 +941,7 @@ function evalExpr(s, frame, text){                              /* -> {hops:[{bo
       return {e:`${pl.e}[${k}]`,key:got.key,kind:"elem",txt:elemVal(got.b,T),type:T,addr:pl.value+k*w}; }
     fail(`${pl.e} isn't an array or a pointer`); };
   const deref=pl=>{                                              /* follow the arrow out of pl's box */
+    if(isFn(pl)) fail(pl.init===false?`${pl.e} isn't set yet, so calling it is a bug`:!pl.value?`${pl.e} is NULL: calling it crashes`:`${pl.e} points to the function ${pl.fn||show(pl.value)}(): code, not a box of data. ${pl.e}(…) and (*${pl.e})(…) both call it`);
     if(pl.kind!=="ptr") fail(`${pl.e} isn't a pointer, so there's no arrow to follow`);
     if(pl.init===false) fail(`${pl.e} isn't set yet, so following it is a bug`);
     if(!pl.value) fail(`${pl.e} is NULL: there's nothing to follow`);
@@ -944,7 +997,7 @@ function hopText(ex,res){
   if(res.err) return `${ex}\n${res.err}`;
   const r=res.r, n=res.hops.filter(h=>h.from).length;
   const v=r.kind==="node"?`the node at ${show(r.node.addr)}`:r.kind==="addr"?show(r.value):r.kind==="elem"?r.txt:r.init===false?"?? (not set yet)":
-          r.kind==="ptr"?show(r.value):r.kind==="int"?String(r.value):"—";
+          r.kind==="ptr"?show(r.value):isFn(r)?fnTxt(r):r.kind==="int"?String(r.value):"—";
   const where=r.kind!=="addr"&&r.addr!=null?`\nat ${show(r.addr)}${simple?` (real ${real(r.addr)})`:""}`:"";
   return `${ex} = ${v}\n${r.type}${n?`, following ${n} arrow${n>1?"s":""}`:""}${where}`;
 }
@@ -1099,6 +1152,7 @@ function arrSlots(v,full){                                       /* {n, w, el, p
 }
 function sfText(f,b){                                          /* one field of a struct in an array: its value as text */
   if(!b||b.length<f.size) return "?";
+  if(isFn(f)){ const a=num(le(b)), nm=fnSeen().at.get(a); return fnTxt({value:a,fn:nm}); }   /* a function pointer: its name, if the trace saw it */
   if(f.kind==="ptr"||/\*\s*$/.test(f.type||"")) return show(num(le(b)));
   if(/char/.test(f.type)&&f.size===1){ const c=parseInt(b[0],16); return c===0?"'\\0'":c>=32&&c<127?`'${String.fromCharCode(c)}'`:String(c); }
   return elemText(f.type,b)??"?";
@@ -1648,7 +1702,7 @@ function watchAt(w,s){                                           /* its value on
   if(res.err) return /isn't a variable in/.test(res.err)?{txt:"not in scope here",off:true}:{txt:res.err,bad:true};
   const r=res.r;
   const txt=r.kind==="node"?`the node at ${show(r.node.addr)}`:r.kind==="addr"?show(r.value):r.kind==="elem"?r.txt:
-            r.init===false?"??":r.kind==="ptr"?show(r.value):r.kind==="int"?String(r.value):(arrText(r.type,r.size,r.bytes,48)||"—");
+            r.init===false?"??":r.kind==="ptr"?show(r.value):isFn(r)?fnTxt(r):r.kind==="int"?String(r.value):(arrText(r.type,r.size,r.bytes,48)||"—");
   return {txt,key:r.key};
 }
 function watchHistory(w){                                        /* every step's value, and the steps where it changed */
@@ -1721,6 +1775,7 @@ function idsRead(code,fr){                                         /* variables 
     if(prev==="->"||prev==="."||prev==="&"||next==="(") return;                         /* a field, an address, a call */
     if(prev&&/^[A-Za-z_]\w*$/.test(prev)&&!names.has(prev)&&!KW.test(prev)&&prev!=="return") return;   /* a declaration */
     if(prev==="*"&&toks[k-2]&&/^[A-Za-z_]\w*$/.test(toks[k-2])&&!names.has(toks[k-2])) return;
+    if(prev==="*"&&toks[k-2]==="("&&next===")"&&toks[k+2]==="("&&toks[k-3]&&/^(?:[A-Za-z_]\w*|\*)$/.test(toks[k-3])&&!names.has(toks[k-3])) return;   /* int (*cmp)(int, int): a declaration */
     out.add(t); });
   return [...out];
 }
@@ -1869,6 +1924,7 @@ function boxVal(st,key){
   const u=b.v||b.fd; if(!u) return b.n.kind==="array"?(arrText(`${elemOf(b.n.type)} [${(arrDims(b.n)||{}).n||0}]`,(arrDims(b.n)||{}).span||0,b.n.bytes,30)||"—"):`the node at ${show(b.n.addr)}`;
   if(u.init===false||(b.fd&&(b.n.init===false||unsetF(b.n,b.fd)))) return "?? (not set yet)";
   if(u.kind==="ptr") return u.value?show(u.value):"NULL";
+  if(isFn(u)) return fnTxt(u);
   if(u.kind==="int") return String(u.value);
   return (b.v?arrText(u.type,u.size,u.bytes,30):null)||"—";
 }
@@ -1896,8 +1952,8 @@ function lineWords(i){
     if(R) say(`${kc(gone)} finished and returned ${kc(R.txt)}${R.recv?`, which is now in ${kc(R.recv.name)}`:", but nothing stores it"}.`);
     else say(`${kc(gone)} finished. Back in ${kc(fn)}.`); }
   /* a call: which values the new function's parameters got */
-  else if(RA.call){ const callee=S.frames[0], CI=callInfo(S);
-    say(`Calls ${kc(callee.func)}. It starts at line ${S.line}.`);
+  else if(RA.call){ const callee=S.frames[0], CI=callInfo(S), via=new RegExp(`(?:^|[^\\w.>])${callee.func}\\s*\\(`).test(code)?null:fnCall(code,callee.func,fr,P);
+    say(via?`Calls ${kc(callee.func)} through ${kc(via.via)}: a function pointer that holds ${kc(callee.func)}'s address. It starts at line ${S.line}.`:`Calls ${kc(callee.func)}. It starts at line ${S.line}.`);
     callee.vars.filter(v=>v.arg).forEach(v=>{ const ci=CI["v:"+v.addr];
       say(`${kc(v.name)} gets ${kc(boxVal(S,"v:"+v.addr))}${ci?`: it ${esc(ci.text)}`:""}.`); }); }
   /* if / while / for: what was checked, and which way it went */
@@ -1940,6 +1996,8 @@ function lineWords(i){
         if(through) say(el?`${kc(lhs.replace(/^\*+/,"").replace(/\s*\[.*$/,""))} holds the address of ${kc(el.arr)}, so the write goes into ${kc(name)}.`
           :`${kc(lhs.replace(/^\*+/,""))} holds the address of ${kc(name)}, so the write goes into ${kc(name)}.`);
         say(op==="="?`Writes ${kc(after)} into ${kc(name)}${before===after?" (no change)":/^\?\?/.test(before)?" (it wasn't set before)":` (it was ${kc(before)})`}.`:`${kc(name)} goes from ${kc(before)} to ${kc(after)}.`);
+        const fb=!el&&boxIn(S,key), fu=fb&&(fb.v||fb.fd);
+        if(isFn(fu)&&fu.value&&fu.fn) say(`Now calling ${kc(lhs.replace(/^\*\s*/,"").replace(/\s+/g,"")+"(…)")} runs ${kc(fu.fn+"()")}: a function's name on its own, like ${kc(fu.fn)}, is its address.`);
         const bx=boxIn(P,key);
         if(bx&&bx.v&&bx.v.arg&&bx.fr===P.frames[0]&&P.frames[1]){                                   /* a parameter: only this copy changes */
           const orig=P.frames[1].vars.find(v=>v.kind===bx.v.kind&&v.value===bx.v.value&&v.name===bx.v.name);
@@ -1972,7 +2030,7 @@ function elemWords(P,S,r,key,fn){                                   /* an elemen
   const bv=blk?null:(boxIn(S,key)||{}).v, d2=bv&&dimsOf(bv.type), C=d2&&d2.dims.length===2?d2.dims[1]:0;   /* a 2D array: grid[1][2], not grid[5] */
   return {arr,name:C?`${arr}[${Math.floor(k/C)}][${k%C}]`:`${arr}[${k}]`,before:unset?"?? (not set yet)":txt(r.txt),after:b?txt(chr?charParts(b.join(""),1)[0]:elemText(r.type,b)):"?"};
 }
-function boxValOf(r){ return r.kind==="node"?`the node at ${show(r.node.addr)}`:r.kind==="elem"||r.kind==="selem"?r.txt:r.init===false?"??":r.kind==="ptr"?(r.value?show(r.value):"NULL"):r.kind==="int"?String(r.value):"—"; }
+function boxValOf(r){ return r.kind==="node"?`the node at ${show(r.node.addr)}`:r.kind==="elem"||r.kind==="selem"?r.txt:r.init===false?"??":r.kind==="ptr"?(r.value?show(r.value):"NULL"):isFn(r)?fnTxt(r):r.kind==="int"?String(r.value):"—"; }
 function wordsHTML(){
   if(!WORDS||!TRACE||at===0) return "";
   const P=TRACE.steps[at-1], S=TRACE.steps[at], A=P.asm_at&&TRACE.asm_lines&&TRACE.asm_lines[P.asm_at];
@@ -2067,7 +2125,7 @@ function renderCards(s){
   };
   const structW=v=>Math.ceil(Math.max(SLOTW,11+7.6*v.name.length+14+6.9*v.type.length+8+(isListHead(v)?48:0),
     ...FL(v).map(g=>{ const x=isArrF(g)&&fieldArr(v,g), A=x&&arrSlots(x); return A?(g.depth||0)*12+12+arrGeo(A,AP.cw.get(SFN+"|"+v.name+"|"+g.name)||30,"","",0).endL+arrGeo(A,AP.cw.get(SFN+"|"+v.name+"|"+g.name)||30,"","",0).endW+12:0; }),
-    ...FL(v).map(g=>12+(g.depth||0)*12+6.9*(g.leaf||g.name).length+16+(g.fields?6.9*short(g.type).length:7.2*(g.kind==="ptr"?(simple?10:14):g.kind==="int"?11:12))+12)));
+    ...FL(v).map(g=>12+(g.depth||0)*12+6.9*(g.leaf||g.name).length+16+(g.fields?6.9*short(g.type).length:7.2*(g.kind==="ptr"?(simple?10:14):isFn(g)?fnMax()+4:g.kind==="int"?11:12))+12)));
   let SFN="";                                                     /* the frame being drawn: an array field's width is kept per function */
   const structBox=(sl,f,bx,by)=>{                                 /* struct item2 local: its fields one per line, a struct inside it as a box */
     const v=sl.v, w=sl.w, key="v:"+v.addr, L=FL(v), unset=v.init===false, rc=RC[key], hd=RC._D?RC._D[key]:undefined, out=hd===undefined&&!!inner;
@@ -2087,11 +2145,11 @@ function renderCards(s){
       if(g.fields){ const n=L.filter(x=>x.name.startsWith(g.name+".")).length;
         h+=`<g data-box="${k}" data-tip="${esc(tip)}"><rect x="${bx+6+ix}" y="${y+1}" width="${w-12-2*ix}" height="${(n+1)*16+2}" rx="5" fill="#F6F8FB" stroke="${Ig?INK:LN}" stroke-width="${Ig?1.6:1}"/>`+
           `<text x="${bx+12+ix}" y="${y+13}" font-size="11.5" font-weight="700" fill="${MUT}" ${MONO}>${esc(g.leaf||g.name)}</text><text x="${bx+w-12-ix}" y="${y+13}" font-size="10" text-anchor="end" fill="${MUT}" ${MONO}>${esc(short(g.type))}</text></g>`; }
-      else { const un=unset||unsetF(v,g), txt=un?"??":g.kind==="ptr"?show(g.value):g.kind==="int"?String(g.value):(arrText(g.type,g.size,fieldHex(v,g),12)||"—");
+      else { const un=unset||unsetF(v,g), txt=un?"??":g.kind==="ptr"?show(g.value):isFn(g)?fnTxt(g):g.kind==="int"?String(g.value):(arrText(g.type,g.size,fieldHex(v,g),12)||"—");
         if(g.kind==="ptr"&&!un&&g.value) ptrs.push({g,C:Cg,I:Ig,y:y+8});
-        h+=`<g data-box="${k}" data-tip="${esc(tip+(un?"\nnot set yet: leftover bytes":""))}">`+(Cg||Ig?`<rect x="${bx+8+ix}" y="${y+2}" width="${w-16-2*ix}" height="15" rx="3" fill="${Cg?AMBG:"none"}" stroke="${Ig?INK:"none"}" stroke-width="1.4"/>`:"")+
+        h+=`<g data-box="${k}" data-tip="${esc(tip+(un?"\nnot set yet: leftover bytes":fnTip(g)))}">`+(Cg||Ig?`<rect x="${bx+8+ix}" y="${y+2}" width="${w-16-2*ix}" height="15" rx="3" fill="${Cg?AMBG:"none"}" stroke="${Ig?INK:"none"}" stroke-width="1.4"/>`:"")+
           `<text x="${bx+12+ix}" y="${y+13}" font-size="11.5" font-weight="${rg?700:400}" fill="${rg?REACH:MUT}" ${MONO}>${esc(g.leaf||g.name)}</text>`+
-          `<text x="${bx+w-12-ix}" y="${y+13}" font-size="12" font-weight="800" text-anchor="end" fill="${Cg?AMB:un?MUT:INK}" ${MONO}>${Cg?`<tspan class="pop">${esc(txt)}</tspan>`:esc(txt)}</text></g>`; }
+          `<text x="${bx+w-12-ix}" y="${y+13}" font-size="12" font-weight="800" text-anchor="end" fill="${Cg?AMB:un?MUT:INK}" ${MONO}${un?"":fnAttr(g)}>${Cg?`<tspan class="pop">${esc(txt)}</tspan>`:esc(txt)}</text></g>`; }
       y+=16; });
     pos[key]={x:bx+w/2,y:by+SLOTH,C:Cs,I,F,who,lines,ptrs,bx,w};
     return `<g data-box="${key}" data-lad="${v.addr}|${esc(f.func)}|${esc(v.name)}" data-tip="${esc(v.name+" ("+v.type+"): "+L.filter(g=>!g.depth).length+" fields"+role+"\nreal address "+real(v.addr)+(unset?"\nnot set yet: leftover bytes":v.funset?"\n?? = not set yet: leftover bytes":"")+reachTip(rc,inner?inner.func:"").replace(/\nchange it: .*/,""))}"${F?DIM:""}>`+
@@ -2209,7 +2267,7 @@ function renderCards(s){
       if(sl.st){ SFN=f.func; o+=structBox(sl,f,bx,by); return; }
       const v=sl.v, SLOTW2=sl.w, key="v:"+v.addr, C=CH.has(key), I=!C&&TT.inv.has(key), F=TT.on&&!C&&!I, rc=RC[key], ci=CI[key], hd=RC._D?RC._D[key]:undefined, out=hd===undefined&&!!inner;
       const role=`\n${f.globals?"a global":`${v.arg?"parameter":"local"} of ${f.func}`}${v.decl?`, declared on line ${v.decl}`:""}`+(ci?`\n${ci.text}`:"")+(out?`\n${inner.func} can't reach this box`:"")+(v.addr?libTip(s,v.addr,v.size||8):"");
-      const val=v.init===false?"??":v.kind==="int"?String(v.value):v.kind==="other"?(arrText(v.type,v.size,v.bytes,22)||"—"):(v.value===null?"—":show(v.value));   /* ?? only means: not set yet */
+      const val=v.init===false?"??":v.kind==="int"?String(v.value):isFn(v)?fnTxt(v):v.kind==="other"?(arrText(v.type,v.size,v.bytes,22)||"—"):(v.value===null?"—":show(v.value));   /* ?? only means: not set yet */
       pos[key]={x:bx+SLOTW2/2,y:by+SLOTH,C,I,F,who:ownerOf(f,inner)+v.name};
       const lit=v.cstr!=null&&v.init!==false&&!ci&&!out?(()=>{                /* a char * to a string literal: its text, and whether it's read-only */
         const tag=v.cstr_ro?78:0, room=Math.max(4,Math.floor((SLOTW2-22-tag)/6.9)-2), q=JSON.stringify(v.cstr).slice(1,-1), t=`"${q.length>room?q.slice(0,room-1)+"…":q}${v.cstr_cut&&q.length<=room?"…":""}"`;
@@ -2218,12 +2276,12 @@ function renderCards(s){
           (v.cstr_ro?`<rect x="${bx+SLOTW2-8-tag}" y="${by+66}" width="${tag}" height="15" rx="7.5" fill="${PNL}" stroke="${BORDER}"/><text x="${bx+SLOTW2-8-tag/2}" y="${by+77}" font-size="11.5" font-weight="600" text-anchor="middle" fill="${MUT}">read-only</text>`:"")+`</g>`; })():"";   /* on the bottom line: the address keeps its own */
       const at="at "+show(v.addr), aroom=Math.floor((SLOTW2-8-(11+6.9*at.length+12))/6.9)-2;     /* the hover "= &x" fits beside the address */
       if(v.kind==="other"&&/^"/.test(val)) pos[key].txt={x0:bx+11,ch:0.6*(val.length>10?12:15),len:val.length};   /* a string: a pointer lands on its char */
-      o+=`<g data-box="${key}" data-lad="${v.addr}|${esc(f.func)}|${esc(v.name)}" data-tip="${esc(v.name+" ("+v.type+")"+role+"\nreal address "+real(v.addr)+"\nvalue "+(v.value===null?"??":real(v.value))+(v.init===false?"\nnot set yet: leftover bytes":"")+reachTip(rc,inner.func))}"${F?DIM:""}>`+
+      o+=`<g data-box="${key}" data-lad="${v.addr}|${esc(f.func)}|${esc(v.name)}" data-tip="${esc(v.name+" ("+v.type+")"+role+"\nreal address "+real(v.addr)+"\nvalue "+(v.value===null?"??":real(v.value))+(v.init===false?"\nnot set yet: leftover bytes":fnTip(v))+reachTip(rc,inner.func))}"${F?DIM:""}>`+
         `<rect x="${bx}" y="${by}" width="${SLOTW2}" height="${SLOTH}" rx="8" fill="${C?AMBG:out?"#F1F3F5":"#fff"}" stroke="${C?AMB:I?INK:BORDER}" stroke-width="${C||I?2.2:1}"/>`+
         (hd!==undefined?`<rect x="${bx+2}" y="${by+7}" width="4" height="${SLOTH-14}" rx="2" fill="${hopc(hd)}"/>`:"")+
         `<text x="${bx+11}" y="${by+17}" font-size="12.5" font-weight="700" fill="${INK}" ${MONO}>${esc(v.name)}</text>`+
         (v.name.length>7?"":`<text x="${bx+SLOTW2-8}" y="${by+17}" font-size="10" text-anchor="end" fill="${MUT}">${esc(v.type)}</text>`)+
-        `<text x="${bx+11}" y="${by+40}" font-size="${val.length>10?12:15}" font-weight="800" fill="${C?AMB:INK}" ${MONO}>${C?`<tspan class="pop">${esc(val)}</tspan>`:esc(val)}</text>`+
+        `<text x="${bx+11}" y="${by+40}" font-size="${val.length>10?12:15}" font-weight="800" fill="${C?AMB:INK}" ${MONO}${v.init===false?"":fnAttr(v)}>${C?`<tspan class="pop">${esc(val)}</tspan>`:esc(val)}</text>`+
         (rc?`<text x="${bx+SLOTW2-8}" y="${by+40}" font-size="11" font-weight="700" text-anchor="end" fill="${REACH}" ${MONO}${EX(rc.v)}>= ${esc(orText(rc.v,rc.alt.map(o=>o.v),12))}</text>`:"")+
         `<text x="${bx+11}" y="${by+58}" font-size="11.5" fill="${MUT}" ${MONO}>${esc(at)}</text>`+                     /* where it lives: always shown */
         (rc&&aroom>=3?`<text class="hov" x="${bx+SLOTW2-8}" y="${by+58}" font-size="10" font-weight="700" text-anchor="end" fill="${REACH}" ${MONO}${EX(rc.a)}>= ${esc(clip(orText(rc.a,rc.alt.map(o=>o.a),Math.min(11,aroom)),aroom))}</text>`:"")+
@@ -2484,13 +2542,13 @@ function renderCards(s){
           `<text x="${bx+CWn-10-ix}" y="${fy+15}" font-size="11.5" text-anchor="end" fill="${MUT}" ${MONO}>at ${esc(simple?show(fa):"…"+fa.toString(16).slice(-4))}</text>`+body.h+`</g>`;
         return; }
       const fy=HY+42+ry, key="h:"+n.addr+":"+fd.name, Cf=CH.has(key), rf=RC[key], ix=(fd.depth||0)*10, Ix=!!fd.depth&&!Cf&&TT.inv.has(key), un=unsetF(n,fd);   /* nested: read outline, ?? until set */
-      const txt=un?"??":fd.kind==="ptr"?show(fd.value):fd.kind==="other"?(arrText(fd.type,fd.size,fieldHex(n,fd),14)||"—"):(fd.value===null?"—":String(fd.value));
+      const txt=un?"??":fd.kind==="ptr"?show(fd.value):isFn(fd)?fnTxt(fd):fd.kind==="other"?(arrText(fd.type,fd.size,fieldHex(n,fd),14)||"—"):(fd.value===null?"—":String(fd.value));
       const fa=fd.offset!=null?n.addr+fd.offset:null, faTxt=fa===null?"":simple?show(fa):"…"+fa.toString(16).slice(-4);   /* this field's own address */
       const croom=Math.floor((CWn-10-2*ix-(faTxt?6.9*(faTxt.length+3)+10:0)-11)/6.9)-13;   /* the hover "change: … = …;" stops before the address */
-      o+=`<g data-box="${key}" data-tip="${esc(fd.name+" ("+fd.type+")"+(fa===null?"":"\nat "+real(fa)+(simple?" ("+show(fa)+")":"")+", the block's start + "+fd.offset)+reachTip(rf,inner?inner.func:""))}">`+
+      o+=`<g data-box="${key}" data-tip="${esc(fd.name+" ("+fd.type+")"+(fa===null?"":"\nat "+real(fa)+(simple?" ("+show(fa)+")":"")+", the block's start + "+fd.offset)+(un?"":fnTip(fd))+reachTip(rf,inner?inner.func:""))}">`+
          `<rect x="${bx+3+ix}" y="${fy+3}" width="${CWn-6-2*ix}" height="${FH-6}" rx="4" fill="${Cf?AMBG:"transparent"}"${Ix?` stroke="${INK}" stroke-width="1.6"`:""}/>`+
          `<text x="${bx+11+ix}" y="${fy+17}" font-size="10.5" font-weight="${rf?700:400}" fill="${rf?REACH:MUT}" ${MONO}${rf?EX(rf.v):""}>${esc((t=>fd.depth?clip(t,Math.max(4,Math.floor((CWn-2*ix-24-txt.length*(txt.length>7?7.3:8.5))/6.4))):t)(rf?orText(rf.v,rf.alt.map(o=>o.v),16):fd.leaf||fd.name))}</text>`+   /* nested: the name stops before the value */
-         `<text x="${bx+CWn-10-ix}" y="${fy+17}" font-size="${txt.length>7?12:14}" font-weight="800" text-anchor="end" fill="${Cf?AMB:un?MUT:INK}" ${MONO}>${Cf?`<tspan class="pop">${esc(txt)}</tspan>`:esc(txt)}</text>`+
+         `<text x="${bx+CWn-10-ix}" y="${fy+17}" font-size="${txt.length>7?12:14}" font-weight="800" text-anchor="end" fill="${Cf?AMB:un?MUT:INK}" ${MONO}${un?"":fnAttr(fd)}>${Cf?`<tspan class="pop">${esc(txt)}</tspan>`:esc(txt)}</text>`+
          (rf&&croom>=4?`<text class="hov" x="${bx+11+ix}" y="${fy+30}" font-size="10" fill="${MUT}" ${MONO}${EX(rf.v)}>change: <tspan fill="${REACH}">${esc(clip(rf.v,croom))} = …;</tspan></text>`:"")+
          (faTxt?`<text x="${bx+CWn-10-ix}" y="${fy+30}" font-size="11.5" text-anchor="end" fill="${MUT}" ${MONO}>at ${faTxt}</text>`:"")+`</g>`;
     });
@@ -2760,7 +2818,8 @@ function memModel(s){
         r.cells[a-ra]={a,h:b[k],cls:junk?"junk":""}; M.bytes.set(a,b[k]);
         if(k===0){
           r.nm.push(`${esc(v.name)}<small>${esc(v.type.replace(/struct /g,""))}</small>`);
-          r.vl.push(junk?{name:v.name,txt:"??",cls:"junk"}:v.kind==="ptr"?{name:v.name,...ptrTxt(raw)}:{name:v.name,txt:v.kind==="int"?String(v.value):"—"});
+          r.vl.push(junk?{name:v.name,txt:"??",cls:"junk"}:v.kind==="ptr"?{name:v.name,...ptrTxt(raw)}:isFn(v)?{name:v.name,txt:fnTxt(v),fn:v.value&&v.fn}:{name:v.name,txt:v.kind==="int"?String(v.value):"—"});
+          if(!junk&&isFn(v)) r.tip=fnTip(v).trim();
           if(junk) r.tip="not set yet: these are leftover bytes";
           const rc=RC["v:"+v.addr]; if(rc) r.tip=((r.tip||"")+reachTip(rc,who)).trim();
           r.tip=(`${v.name}: ${f.globals?"a global":`${v.arg?"parameter":"local"} of ${f.func}`}${v.decl?`, line ${v.decl}`:""}\n`+(r.tip||"")).trim();
@@ -2779,7 +2838,7 @@ function memModel(s){
       EP.forEach(e=>{ const r=e.p&&(v.addr+e.j*8)%8===0&&rows.get(v.addr+e.j*8); if(r) r.ptrs=(r.ptrs||[]).concat({to:e.p,freed:freedAt(e.p),k:"v:"+v.addr}); });   /* an arrow per pointer */
       if(LF.length) for(let a=v.addr-(v.addr%8);a<v.addr+n;a+=8){ const r=rows.get(a); if(!r) continue;   /* each field's value in its row, an arrow per pointer field */
         const got=LF.filter(g=>v.addr+g.offset>=a&&v.addr+g.offset<a+8); if(!got.length) continue;
-        r.vl=got.map(g=>({name:g.name,txt:unsetF(v,g)?"??":g.kind==="ptr"?(g.value?show(g.value):"NULL"):g.kind==="int"?String(g.value):"—"}));
+        r.vl=got.map(g=>({name:g.name,txt:unsetF(v,g)?"??":g.kind==="ptr"?(g.value?show(g.value):"NULL"):isFn(g)?fnTxt(g):g.kind==="int"?String(g.value):"—",fn:!unsetF(v,g)&&isFn(g)&&g.value&&g.fn}));
         got.forEach(g=>{ if(g.kind==="ptr"&&g.value&&!unsetF(v,g)) r.ptrs=(r.ptrs||[]).concat({to:g.value,freed:freedAt(g.value),k:"h:"+v.addr+":"+g.name}); }); }
     });
     if(FRAMEINT&&f.rbp&&f.frame_bytes){                          /* fill in the rest of the frame */
@@ -2836,8 +2895,8 @@ function memModel(s){
       else flds.forEach(f=>{
         if(f.offset==null||f.offset+f.size<=off||f.offset>=off+8) return;
         if(f.offset<off){ nm.push(`<small>↳ ${esc(f.name)} +${off-f.offset}</small>`); return; }
-        const t=f.kind==="ptr"&&f.size===8?ptrTxt(raw.slice(f.offset,f.offset+8)):{txt:f.kind==="int"?String(f.value):"—"};
-        nm.push(esc(f.name)+(n.freed?"<small>old</small>":"")); vl.push({name:f.name,txt:t.txt,cls:n.freed?"":t.cls});
+        const t=f.kind==="ptr"&&f.size===8?ptrTxt(raw.slice(f.offset,f.offset+8)):isFn(f)?{txt:fnTxt(f),fn:!n.freed&&f.value&&f.fn}:{txt:f.kind==="int"?String(f.value):"—"};
+        nm.push(esc(f.name)+(n.freed?"<small>old</small>":"")); vl.push({name:f.name,txt:t.txt,cls:n.freed?"":t.cls,fn:t.fn});
         const to=!n.freed&&f.kind==="ptr"&&f.size===8?num(le(raw.slice(f.offset,f.offset+8))):0; if(to) ptrs.push({to,freed:freedAt(to),k:"h:"+n.addr+":"+f.name});
       });
       if(!nm.length) nm.push(isA&&off>=n.size?`<small>${off>=nextHdr?"next header":"past the end"}</small>`:"<small>padding</small>");
@@ -2874,7 +2933,7 @@ function renderMem(s){
     (r.ptrs||[]).forEach(p=>ARROWS.push({src:id,to:p.to,freed:p.freed,hot,k:p.k}));
     (r.bx||[]).forEach(k=>{ const pv=prevPtr[k], cur=(r.ptrs||[]).find(p=>p.k===k);                   /* cut links */
       if(pv&&(!cur||cur.to!==pv)) ARROWS.push({src:id,to:pv,ghost:true,k:"ghost"}); });
-    const vals=r.vl.map(v=>`<span class="${v.cls||""}">${esc((r.vl.length>1&&v.name?v.name+" = ":"")+v.txt)}</span>`).join(", ");
+    const vals=r.vl.map(v=>`<span class="${v.cls||""}"${v.fn?` data-fn="${esc(v.fn)}"`:""}>${esc((r.vl.length>1&&v.name?v.name+" = ":"")+v.txt)}</span>`).join(", ");
     return (r.more?`<div class="gapr">⋯ ${esc(r.more)}</div>`:"")+
       `<div class="r${r.cls?" "+r.cls:""}${hot?" hot":""}${r.rz?" rz":""}" data-r="${id}" data-addr="${r.addr}"${r.lad?` data-lad="${esc(r.lad)}"`:""}${r.bx&&r.bx.length?` data-box="${r.bx.join(" ")}"`:""} data-tip="${esc((r.tip?r.tip+"\n":"")+"real address "+real(r.addr)+(r.rtip||""))}">${r.sp?`<span class="spm${r.spz?" rz":""}">${r.sp}</span>`:""}<span class="a">${show(r.addr)}</span><span class="nm">${r.nm.join(" ")}</span>${cells}<span class="vl">${vals}</span></div>`;
   };
@@ -3185,8 +3244,7 @@ pinEl.addEventListener("click",e=>{ e.stopPropagation();
   const txt=c.getAttribute("data-copy"), done=()=>{ c.textContent="Copied"; setTimeout(()=>{ c.textContent="Copy"; },1200); };
   const old=()=>{ const ta=document.createElement("textarea"); ta.value=txt; document.body.appendChild(ta); ta.select(); try{ document.execCommand("copy"); done(); }catch(_){} ta.remove(); };
   if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done,old); else old(); });
-document.addEventListener("click",e=>{ if(PIN&&!e._pinned&&e.target.isConnected&&!e.target.closest("#pic")&&!e.target.closest(".pinp")&&!e.target.closest(".bar")) unpin(); });
-function tipAt(e,text){ tip.innerHTML=esc(text).replace(/\n/g,"<br>"); tip.style.display="block"; tip.style.left=Math.min(e.clientX+14,innerWidth-300)+"px"; tip.style.top=(e.clientY+14)+"px"; }
+document.addEventListener("click",e=>{ if(PIN&&!e._pinned&&e.target.isConnected&&!e.target.closest("#pic")&&!e.target.closest(".pinp")&&!e.target.closest(".bar")) unpin(); });function tipAt(e,text){ tip.innerHTML=esc(text).replace(/\n/g,"<br>"); tip.style.display="block"; tip.style.left=Math.min(e.clientX+14,innerWidth-300)+"px"; tip.style.top=(e.clientY+14)+"px"; }
 function follow(el,ex,fr,e){ if(HOVEX!==el){ HOVEX=el; const res=evalExpr(TRACE.steps[at],fr,ex); showHops(res); el._t=hopText(ex,res); } tipAt(e,el._t); }
 function unfollow(){ if(HOVEX){ HOVEX=null; clearHops(); } tip.style.display="none"; }
 $("code").addEventListener("mousemove",e=>{
@@ -3226,6 +3284,7 @@ $("pic").addEventListener("click",e=>{                           /* predict: a c
   e.stopImmediatePropagation(); draw(); },true);
 $("pic").addEventListener("click",e=>{
   if(e.target.closest(".lx")){ LADDER=null; draw(); return; }
+  const fe=e.target.closest("[data-fn]"); if(fe){ jumpToFn(fe.getAttribute("data-fn"),e); return; }   /* → add(): show add() in the code */
   const pb=e.target.closest("[data-tip]"), bk=pb&&boxOf(pb);    /* a box: pin how to print it */
   if(bk){ PIN={...bk,x:e.clientX,y:e.clientY}; showPin(); e._pinned=true; } else unpin();   /* the click may redraw the picture: mark it, not its target */
   const wb=e.target.closest("[data-watch]"); if(wb){ const [fn,ex]=wb.dataset.watch.split("|"); addWatch(fn,ex); return; }
