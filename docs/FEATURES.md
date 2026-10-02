@@ -362,6 +362,35 @@ a pointer, usually called **`next`**, to the next one.
 
 - **Try it:** `tests/rho.c`, **step 55** (a wide window helps: the 5 cards need about 1900 pixels).
 
+### Extra pointers: link, random, child, parent
+
+- Some nodes have **more pointers to their own type** than `next` and `prev` (or `left` and `right`): `link`, `random`,
+  `jump`, `arbit`, `child`, `parent`, `sibling` … These are **extra pointers**.
+- In a list, an extra pointer's arrow is **dashed and teal**, and goes **above** the cards, so it never mixes with the
+  `next` arrows curving below. One that points to its own node is a small loop on top of it.
+  The cards are in `next` order, and the list line still reads `a: 1 → 2 → 3 → 4 → NULL`.
+- An extra pointer that just changed is amber (still dashed), with a sentence like *"link now points to 0x100"*.
+- **`child`** (a multilevel list): each child list gets a **row of its own under the node** that holds it, and the
+  dashed `child` arrow goes **down** to it. The list lines add one per child list: `2's child: 5 → 6 → NULL`.
+- **`parent`** in a tree: a **thin dashed arrow going up** from each child to its parent, next to the `left` and `right`
+  arrows going down.
+- A node with one pointer to its own type is still a plain list, whatever the pointer is called. Without a `next`,
+  the first pointer that isn't `prev`, `child` or `parent` is used as `next`.
+
+![b->link = a: the dashed link arrows go over the cards; next arrows stay below](img/list-extra.png)
+
+![c->link = c: a link to its own node](img/list-extra-self.png)
+
+![A 2-level list: 2's child and 4's child, each in a row under its node](img/list-child.png)
+
+![A tree with parent pointers: thin dashed arrows up, 0x500's parent just set](img/tree-parent.png)
+
+- **Try it:** `tests/link_list.c`, **step 20** (`b->link = a`) and **step 21** (`c->link = c`);
+  `tests/child_list.c`, **step 77**; `tests/parent_tree.c`, **step 56**.
+- **Limits:**
+  - The child rows don't wrap: a wide multilevel list makes the picture wider.
+  - A child list is placed under its node only when the node is in a list a variable reaches.
+
 ### struct list_head and container_of
 
 - **Kernel-style lists** (the way the Linux kernel does it): instead of a `next` to the item, each item holds a small
@@ -842,6 +871,7 @@ a pointer, usually called **`next`**, to the next one.
 | `fn_pointer.c` | A struct with a function-pointer field, set to `add` then `mul` and called through it |
 | `bit_flags.c` | `struct flags { unsigned on : 1; unsigned level : 3; unsigned mode : 4; }` changed field by field, on the stack and on the heap |
 | `board.c` | `char board[3][3]`: a char grid on the stack |
+| `child_list.c` | A 2-level list built by hand: 2's child 5 → 6 and 4's child 7 → 8, each in a row under its node |
 | `circular.c` | A circular list of 3 nodes, walked, then cut and freed |
 | `deep_recursion.c` | 13 frames on the stack at once: frames wrap into rows |
 | `dlist.c` | A doubly linked list: build, insert in the middle, delete |
@@ -854,10 +884,12 @@ a pointer, usually called **`next`**, to the next one.
 | `index_exprs.c` | `b[n-1-i]`, `a[(i+2)%n]`, `a[2*i]`, `a[i/2]`, `c[c[i]]` |
 | `klist.c` | Kernel-style lists: `struct list_head`, `container_of`, a global list head |
 | `leak_array.c` | `realloc` keeping the copied part, and a leaked array |
+| `link_list.c` | A 4-node list with an extra `link` pointer per node, set by hand (one to itself, one NULL) |
 | `make_squares.c` | A `malloc`'d int array returned to `main`, `int *returnSize` |
 | `nested.c` | Structs inside structs: `it->pos.x`, `local.pos.y` |
 | `null_read.c` | Reading through a NULL pointer: the SIGSEGV banner (also `null_read.json.gz`) |
 | `out_of_bounds.c` | Writing past the end of a heap array and a stack array |
+| `parent_tree.c` | A 5-node tree with `parent` pointers built by hand, then a walk up from a leaf |
 | `pairs.c` | `struct pair a[4]`: an array of structs |
 | `print200.c` | 200 printed lines: compact output per step (also `print200.json.gz`) |
 | `print_pointers.c` | The printf panel, checked against what the program printed |

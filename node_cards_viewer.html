@@ -365,6 +365,7 @@ button.icon{width:30px;padding:4px 0;font-weight:700;border-radius:50%}
   <div class="hrow" style="grid-template-columns:1fr;gap:3px;padding:5px 0"><svg width="190" height="62" aria-hidden="true" font-family="'IBM Plex Sans',system-ui,sans-serif" font-size="11.5"><rect x="70" y="2" width="44" height="20" rx="4" fill="#fff" stroke="#A9B6C6"/><rect x="20" y="38" width="44" height="20" rx="4" fill="#fff" stroke="#A9B6C6"/><rect x="120" y="38" width="44" height="20" rx="4" fill="#fff" stroke="#A9B6C6"/><path d="M80,22 C80,30 42,30 42,37 M104,22 C104,30 142,30 142,37" stroke="#5B6B82" stroke-width="1.4" fill="none"/></svg><span>A tree: a struct with <b>left</b> and <b>right</b> (or <b>lchild</b>, <b>rchild</b>) pointers to its own type. Root on top, children below, left to right in in-order. A dashed <b>NULL</b> stub under a missing child. Several trees sit side by side; other blocks follow below. Lists stay in a row</span></div>
   <div class="hrow" style="grid-template-columns:1fr;gap:3px;padding:5px 0"><svg width="190" height="58" aria-hidden="true" font-family="'IBM Plex Mono',ui-monospace,Menlo,monospace" font-size="11.5"><rect x="1" y="1" width="150" height="56" rx="8" fill="#fff" stroke="#A9B6C6"/><text x="9" y="15" fill="#5B6B82">val</text><text x="142" y="15" text-anchor="end" font-weight="800" fill="#14213D">7</text><rect x="6" y="20" width="140" height="33" rx="5" fill="#F6F8FB" stroke="#D5DDE6"/><text x="12" y="33" font-weight="700" fill="#5B6B82">pos</text><text x="20" y="48" fill="#5B6B82">x</text><text x="138" y="48" text-anchor="end" font-weight="800" fill="#5B6B82">??</text></svg><span>A struct inside a struct: a box of its own inside the card (or the variable's box), with its own fields, highlights and ?? until set. Named like <b>item-&gt;pos.x</b>, <b>(*item).pos.x</b> and <b>&amp;item-&gt;pos</b>. A struct variable on the stack shows its fields one per line</span></div>
   <div class="hrow" style="grid-template-columns:1fr;gap:3px;padding:5px 0"><svg width="190" height="60" aria-hidden="true"><rect x="2" y="20" width="60" height="30" rx="6" fill="#fff" stroke="#A9B6C6"/><rect x="100" y="20" width="60" height="30" rx="6" fill="#fff" stroke="#A9B6C6"/><path d="M50,50 C50,60 112,60 112,53" stroke="#5B6B82" stroke-width="1.5" fill="none"/><path d="M108,49 L112,55 L116,49z" fill="#5B6B82"/><path d="M140,20 C140,4 48,4 48,15" stroke="#B91C1C" stroke-width="1.8" fill="none"/><path d="M44,13 L48,19 L52,13z" fill="#B91C1C"/></svg><span>A doubly linked list (<b>next</b> and <b>prev</b>): cards in next order, <b>next</b> arrows below, <b>prev</b> arrows above; the list line reads <b>1 ⇄ 2 ⇄ 3 → NULL</b>. A <b>red</b> arrow and a ⚠ note: a node whose prev (or next) doesn't point back, like <i>0x200's prev doesn't point back to 0x100</i></span></div>
+  <div class="hrow" style="grid-template-columns:1fr;gap:3px;padding:5px 0"><svg width="190" height="64" aria-hidden="true"><rect x="2" y="22" width="50" height="22" rx="5" fill="#fff" stroke="#A9B6C6"/><rect x="70" y="22" width="50" height="22" rx="5" fill="#fff" stroke="#A9B6C6"/><rect x="138" y="22" width="50" height="22" rx="5" fill="#fff" stroke="#A9B6C6"/><path d="M40,44 C40,58 76,58 76,47" stroke="#5B6B82" stroke-width="1.4" fill="none"/><path d="M108,44 C108,58 144,58 144,47" stroke="#5B6B82" stroke-width="1.4" fill="none"/><path d="M46,22 C46,2 160,2 160,19" stroke="#0E7490" stroke-width="1.5" stroke-dasharray="6 4" fill="none"/><path d="M156,15 L160,21 L164,15z" fill="#0E7490"/><circle cx="46" cy="22" r="2.6" fill="#0E7490"/></svg><span><b>Extra pointers</b>: a pointer to its own type that isn't next, prev, left or right (<b>link</b>, <b>random</b>, <b>jump</b>, <b>child</b>, <b>parent</b> …) is dashed and teal. In a list it goes <b>above</b> the cards, so it never mixes with the next arrows below. <b>child</b>: the child list gets a row of its own under its node, and the arrow goes down. <b>parent</b> in a tree: a thin dashed arrow up</span></div>
   <div class="hrow" style="grid-template-columns:1fr;gap:3px;padding:5px 0"><span class="sw txt" style="font-size:11.5px;width:auto;white-space:nowrap">head: 1 → 2 → 3 → (back to 1)</span><span>A circular list: following next comes back to the first node. Its cards are in next order and the last arrow curves back under them to the first card</span></div>
   <div class="hrow" style="grid-template-columns:1fr;gap:3px;padding:5px 0"><span class="sw txt" style="font-size:11.5px;width:auto;white-space:nowrap">items <span style="border:1px solid #A9B6C6;border-radius:999px;padding:0 6px;background:#F1F5F9">head</span>  10 ⇄ 30 → (back to items)</span><span>A kernel-style list (<b>struct list_head</b> inside each item): arrows land on the item's <b>list</b> field, and hovering one shows <i>container_of(p, struct item, list)</i>, the item it's in. A list_head on the stack or a global is the list's <b>head</b>: the circle goes through it. <b>Globals</b>, your file's global and static variables, sit in their own box above the frames</span></div>
   <div class="hrow" style="grid-template-columns:1fr;gap:3px;padding:5px 0"><span class="sw txt" style="font-size:11.5px;width:auto;white-space:nowrap">head: 1 → 2 → 3 → 4 → (back to 2) <span style="border:1px solid #B45309;border-radius:999px;padding:0 6px;background:#FEF3C7;color:#B45309">↻ loop start</span></span><span>A loop back into the middle (a "ρ" shape): the last next points to an earlier node. Its arrow curves back to that node, which is marked <b>↻ loop start</b>; a walk from the head never reaches NULL</span></div>
@@ -422,6 +423,7 @@ button.icon{width:30px;padding:4px 0;font-weight:700;border-radius:50%}
 <script>
 const $=id=>document.getElementById(id);
 const AMB="#B45309",AMBG="#FEF3C7",INK="#14213D",MUT="#5B6B82",LN="#D5DEE8",PNL="#F1F5F9",BAD="#B91C1C",DEAD="#94A3B8",BORDER="#A9B6C6",FAINT="#94A3B8";
+const XTRA="#0E7490";                                              /* extra self-pointers (link, random, child, parent …): their own colour, dashed */
 const MONO=`font-family="'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace"`;
 /* each function gets its own colour: a spine and a faint tint on its frame (main is always slate) */
 const FPAL=[["#334155","#F4F6F9"],["#0F766E","#EFF8F6"],["#6D28D9","#F5F2FD"],["#4D7C0F","#F4F8EC"],["#A21CAF","#FBF1FC"],["#57534E","#F6F5F4"]];   /* none of them blue, amber or red: those already mean something */
@@ -1532,13 +1534,23 @@ function sysSlot(f,a,fb,lo){                                     /* return addr,
 const fieldHex=(n,f)=>n.bytes&&f.offset!=null?n.bytes.slice(f.offset*2,(f.offset+f.size)*2):null;
 
 /* ---------- list line: one line per list, like head: 1 → 6 → 2 → NULL (3 nodes) ---------- */
-function linksOf(n){                                             /* a list node's own links: next, and prev too when it's doubly linked */
+const NEXT_RE=/^(?:next|nxt|fwd|forward)$/, PREV_RE=/^(?:prev|previous|prv|back|bwd|backward)$/;
+const CHILD_RE=/^(?:child|children|kid|kids|down|sub|bottom)$/, PARENT_RE=/^(?:parent|par|up|top)$/;   /* up and down a level: never a list's next */
+function treeLR(n){                                               /* a tree node: left and right (or lchild, rchild) to its own type */
+  if(!n||n.kind==="array"||!n.fields) return null; const T=bare(n.type), pf=re=>n.fields.find(f=>f.kind==="ptr"&&re.test(f.name)&&bare(f.target)===T);
+  const L=pf(/^(?:left|lchild)$/), Rt=pf(/^(?:right|rchild)$/); return L&&Rt?{L,R:Rt}:null; }
+function linksOf(n){                                             /* a list node's own links: next, prev too when it's doubly linked, and the extra ones (link, random, child …) */
   if(!n||n.kind==="array"||!n.fields) return null;
   const ps=n.fields.filter(f=>f.kind==="ptr"&&(!f.target||f.target===n.type));
-  if(ps.length===1) return {next:ps[0],prev:null};
-  const nx=ps.find(f=>/^(?:next|nxt|fwd|forward)$/.test(f.name)), pv=ps.find(f=>/^(?:prev|previous|prv|back|bwd|backward)$/.test(f.name));
-  return ps.length===2&&nx&&pv?{next:nx,prev:pv}:null;
+  if(ps.length===1) return {next:ps[0],prev:null,extra:[]};     /* one pointer to its own type, whatever its name: next */
+  if(ps.length<2||treeLR(n)) return null;
+  const pv=ps.find(f=>PREV_RE.test(f.name)), nx=ps.find(f=>NEXT_RE.test(f.name))||ps.find(f=>f!==pv&&!CHILD_RE.test(f.name)&&!PARENT_RE.test(f.name));   /* no next: the first one that isn't prev, child or parent */
+  return nx?{next:nx,prev:pv||null,extra:ps.filter(f=>f!==nx&&f!==pv)}:null;
 }
+function extrasOf(n){                                             /* the self-pointers that are neither next/prev nor left/right: drawn as extra arrows */
+  const lk=linksOf(n); if(lk) return lk.extra;
+  const t=treeLR(n); if(!t) return [];
+  return n.fields.filter(f=>f.kind==="ptr"&&f!==t.L&&f!==t.R&&bare(f.target)===bare(n.type)&&!NEXT_RE.test(f.name)&&!PREV_RE.test(f.name)); }
 function dllCheck(s){                                            /* doubly linked: a->next->prev must be a, and a->prev->next must be a */
   const byA={}, R=reachable(s), bad=new Map(), notes=[];          /* bad: "h:addr:field" of the arrow to draw red -> what's wrong */
   s.heap.forEach(n=>byA[n.addr]=n);
@@ -1580,7 +1592,7 @@ function kernLines(s){                                           /* LIST_HEAD(it
 }
 function listLines(s){
   const byA={}, pointedAt=new Set(), heads={}, inner=s.frames[0], R=reachable(s), DC=dllCheck(s);
-  s.heap.forEach(n=>{ byA[n.addr]=n; const lk=linksOf(n); if(!n.freed&&R.has(n.addr)) (n.fields||[]).forEach(f=>{ if(f.kind==="ptr"&&f.value&&!(lk&&f===lk.prev)) pointedAt.add(f.value); }); });   /* a prev link doesn't make a node "not the head" */
+  s.heap.forEach(n=>{ byA[n.addr]=n; const lk=linksOf(n); if(!n.freed&&R.has(n.addr)) (n.fields||[]).forEach(f=>{ if(f.kind==="ptr"&&f.value&&!(lk&&(f===lk.prev||lk.extra.includes(f)))) pointedAt.add(f.value); }); });   /* a prev link (or a link, random, child …) doesn't make a node "not the head" */
   const nextOf=n=>{ const lk=linksOf(n); return lk?lk.next:null; }, prevOf=n=>{ const lk=linksOf(n); return lk?lk.prev:null; };
   const valOf=n=>{ const f=(n.fields||[]).find(f=>f.kind==="int"); return f?String(f.value):show(n.addr); };
   const ring=a=>{ const seen=new Set(); let p=a;                /* following next comes back to a: the nodes on the way, else null */
@@ -1600,6 +1612,11 @@ function listLines(s){
   const cov=new Set();                                           /* nodes a list from a head already walks through: a loop into its middle isn't a list of its own */
   Object.keys(heads).forEach(a=>{ let p=+a; while(p&&byA[p]&&!cov.has(p)&&cov.size<4000){ cov.add(p); const nx=nextOf(byA[p]); p=nx?nx.value:0; } });
   const circS=new Set(); circ.forEach(c=>{ if(cov.has(c.start)) return; circS.add(c.start); heads[c.start]=c.names; });
+  { const got=new Set(Object.keys(heads).map(Number)), q=[...got];   /* child lists: 2's child: 5 → 6 → NULL, a line of their own (and their children's) */
+    while(q.length){ let p=q.shift(); const seen=new Set();
+      while(p&&byA[p]&&!byA[p].freed&&!seen.has(p)&&seen.size<200){ seen.add(p); const n=byA[p], lk=linksOf(n);
+        (lk?lk.extra:[]).forEach(f=>{ const c=f.value; if(CHILD_RE.test(f.name)&&c&&byA[c]&&!byA[c].freed&&!got.has(c)&&!cov.has(c)&&linksOf(byA[c])){ got.add(c); heads[c]=[`${valOf(n)}'s ${f.name}`]; q.push(c); } });
+        p=lk&&lk.next?lk.next.value:0; } } }
   const said=new Set();                                          /* each broken pair is told once */
   return Object.entries(heads).map(([a,names])=>{
     let p=+a, parts=[], seps=[], end="NULL", bad=false, dbl=false, last=0, tail=0, loop=0; const seen=new Set(), notes=[], order=[];
@@ -1616,6 +1633,7 @@ function listLines(s){
       [nx&&"h:"+n.addr+":"+nx.name,pv&&"h:"+n.addr+":"+pv.name,pm&&"h:"+p+":"+pm.name].forEach(k=>{ const t=k&&DC.bad.get(k); if(t&&!said.has(t)){ said.add(t); notes.push(t); } });
     }
     const cl=last?{circ:true,back:"h:"+tail+":"+nextOf(byA[tail]).name}:loop?{rho:true,loop,back:"h:"+tail+":"+nextOf(byA[tail]).name}:{};   /* back: the arrow that closes the circle (or the loop) */
+    if(order.some(p=>extrasOf(byA[p]).length)) cl.extra=true;      /* link, random, child …: its cards go in next order, the extra arrows above */
     if(!dbl) return {head:+a, names:names.join(", "), text:parts.concat([end]).join(" → "), count:parts.length, bad, order, ...cl};
     if(!last) seps[seps.length-1]=" → ";                           /* the last one: → NULL */
     return {head:+a, names:names.join(", "), text:parts.map((x,k)=>x+seps[k]).join("")+end, count:parts.length, bad:bad||notes.length>0, notes, dbl, order, ...cl};
@@ -2346,14 +2364,15 @@ function renderCards(s){
     x+=w+14; xmax=Math.max(xmax,x);
     if(GL){ x=16; y+=FROW; }                                     /* the stack frames start on the next row */
   });
-  const HY=y-34+276+(SLOTH-86)+18*LLN.length;                                  /* the heap starts under the last row of frames */
+  const XUP=s.heap.some(n=>!n.freed&&extrasOf(n).some(f=>f.value&&!CHILD_RE.test(f.name)&&!(treeLR(n)&&PARENT_RE.test(f.name))));   /* extra arrows go over the cards: room for them */
+  const HY=y-34+276+(SLOTH-86)+18*LLN.length+(XUP?64:0), HT=HY-(XUP?64:0);   /* HT: where the title and list lines sit; the cards start lower, under the extra arrows */                     /* the heap starts under the last row of frames */
   /* heap cards, in address order */
   const own=new Set(s.heap.map(n=>n.addr));
   const hid=FOLD?s.heap.filter(n=>n.freed||!R.has(n.addr)):[], hset=new Set(hid.map(n=>n.addr));
   const blocks=s.heap.filter(n=>!hset.has(n.addr)), ordered=LORDER?heapOrder(s,blocks):blocks;
   const items=[...ordered.map(n=>({n,a:n.addr})),...(s.chunks||[]).filter(c=>!own.has(c.addr)).map(c=>({c,a:c.addr}))];
   if(!LORDER) items.sort((p,q)=>p.a-q.a);
-  const DLL=LL.filter(l=>l.dbl||l.circ||l.rho||l.kern&&l.count), BACK=new Set(LL.filter(l=>l.circ||l.rho).map(l=>l.back)), RHO=new Map(LL.filter(l=>l.rho).map(l=>[l.back,l.loop]));   /* RHO: the arrow that loops back -> where the loop starts */   /* doubly linked or circular: in next order */
+  const DLL=LL.filter(l=>l.dbl||l.circ||l.rho||l.extra||l.kern&&l.count), BACK=new Set(LL.filter(l=>l.circ||l.rho).map(l=>l.back)), RHO=new Map(LL.filter(l=>l.rho).map(l=>[l.back,l.loop]));   /* RHO: the arrow that loops back -> where the loop starts */   /* doubly linked or circular: in next order */
   if(!LORDER&&DLL.length){                                        /* a doubly linked list: its cards in next order, where its first card would be */
     const inL=new Map(), out=[], done=new Set(), byI=new Map(items.filter(it=>it.n).map(it=>[it.n.addr,it]));
     [...DLL].sort((a,b)=>b.count-a.count).forEach((l,k)=>{ l.order.forEach(p=>{ if(byI.has(p)&&!inL.has(p)) inL.set(p,k); }); });   /* the longest list first: a node half-way through an insert stays in it */
@@ -2404,23 +2423,36 @@ function renderCards(s){
       T.P.forEach((v,a)=>TPOS.set(a,{x:tx+v.c*HALF,y:ty+v.d*(CARDH+LV),d:v.d}));
       bandH=Math.max(bandH,(T.md+1)*(CARDH+LV)); lmax=Math.max(lmax,tx+w); tx+=w+40; });
     if(TRS.length) TH=ty+bandH-HY+30; }
-  const LAY=[]; let lx0=16, ly0=HY+TH, rowH=0, rowsN=0;          /* the other cards flow into rows: same places as a grid when they're all one size */
-  items.forEach(it=>{ const tp=it.n&&!it.grid&&TPOS.get(it.n.addr); if(tp){ LAY.push({x:tp.x,y:tp.y}); return; }
+  /* lists with a child pointer: each child list in a row of its own, starting under the node that holds it */
+  const MPOS=new Map(), MLG=120; let MH=0;
+  { const inI=new Map(); items.forEach(it=>{ if(it.n&&!it.grid&&!TPOS.has(it.n.addr)) inI.set(it.n.addr,it.n); });
+    const kidsOf=n=>{ const lk=!n.freed&&linksOf(n); return lk?lk.extra.filter(f=>CHILD_RE.test(f.name)&&f.value&&f.value!==n.addr&&inI.has(f.value)):[]; };
+    const isKid=new Set(); inI.forEach(n=>kidsOf(n).forEach(f=>isKid.add(f.value)));
+    if(isKid.size){ const cur=[], y0=HY+TH; let deep=0;
+      const place=(start,lv,xmin)=>{ let x=Math.max(xmin,cur[lv]||16), p=start; const row=[];
+        while(p&&inI.has(p)&&!MPOS.has(p)&&row.length<40){ const n=inI.get(p); MPOS.set(p,{x,y:y0+lv*(CARDH+MLG),lv}); row.push(p); lmax=Math.max(lmax,x+SWf(n));
+          x+=SWf(n)+STEP-CW; const lk=linksOf(n); p=lk&&lk.next?lk.next.value:0; }
+        cur[lv]=x+40; deep=Math.max(deep,lv);                     /* the next list on this level starts after it */
+        if(lv<8) row.forEach(a=>kidsOf(inI.get(a)).forEach(f=>{ if(!MPOS.has(f.value)) place(f.value,lv+1,MPOS.get(a).x); })); };
+      LL.filter(l=>l.head&&!isKid.has(l.head)&&inI.has(l.head)&&l.order.some(a=>inI.has(a)&&kidsOf(inI.get(a)).length)).forEach(l=>place(l.head,0,16));
+      if(MPOS.size) MH=(deep+1)*(CARDH+MLG); } }
+  const LAY=[]; let lx0=16, ly0=HY+TH+MH, rowH=0, rowsN=0;       /* the other cards flow into rows: same places as a grid when they're all one size */
+  items.forEach(it=>{ const tp=it.n&&!it.grid&&(TPOS.get(it.n.addr)||MPOS.get(it.n.addr)); if(tp){ LAY.push({x:tp.x,y:tp.y}); return; }
     const G=it.grid&&GG.get(it.grid.col.addr), cw0=G?G.W:it.n&&HGEO[it.n.addr]?HGEO[it.n.addr].g.w:it.n?SWf(it.n):CW, h0=G?Math.max(CARDH,G.H):CARDH;
     if(lx0>16&&lx0+cw0>vis-16){ ly0+=rowH+120; lx0=16; rowH=0; }
     LAY.push({x:lx0,y:ly0}); rowH=Math.max(rowH,h0); rowsN++; lmax=Math.max(lmax,lx0+cw0); lx0+=cw0+STEP-CW; });
   const W=Math.max(zf?980:vis, xmax+2, lmax+16);
   const RY=k=>LAY[k].y, cy={};                                                              /* each card's top */
   const sizes=[...new Set(s.heap.map(n=>n.size).filter(Boolean))];
-  LLN.forEach((l,k)=>{ o+=l.note?`<text x="28" y="${HY-30-18*(LLN.length-k)}" font-size="12" font-weight="700" fill="${BAD}" paint-order="stroke" stroke="#fff" stroke-width="4">⚠ ${esc(l.note)}</text>`   /* a broken prev/next pair */
-    :`<text x="16" y="${HY-30-18*(LLN.length-k)}" font-size="12" fill="${l.bad?BAD:INK}" ${MONO} paint-order="stroke" stroke="#fff" stroke-width="4"><tspan font-weight="700">${esc(l.names)}:</tspan> ${esc(l.text)} ${l.count?`<tspan fill="${MUT}">(${l.count} node${l.count===1?"":"s"})</tspan>`:""}</text>`; });   /* list lines */
-  const heapNote=`${sizes.length===1?sizes[0]+"-byte blocks":"blocks"}, ${LORDER?"in list order":"in address order (list order is set by next)"}`+(TRS.length?" · trees: root on top":"")+(LL.some(l=>l.dbl)?" · doubly linked: next below, prev above":"")+(LL.some(l=>l.circ)?" · circular: the last arrow goes back to the first":"")+(RHO.size?" · a loop: the last arrow goes back into the middle":"")+(LL.some(l=>l.kern)?" · list_head: arrows land on the list field":"")+(GRIDS.length?" · grids: row pointers on the left":"");
-  o+=`<text x="16" y="${HY-30}" font-size="15" font-weight="600" fill="${INK}">Heap<tspan dx="10" font-size="11.5" font-weight="400" fill="${MUT}">${heapNote}</tspan></text>`;
+  LLN.forEach((l,k)=>{ o+=l.note?`<text x="28" y="${HT-30-18*(LLN.length-k)}" font-size="12" font-weight="700" fill="${BAD}" paint-order="stroke" stroke="#fff" stroke-width="4">⚠ ${esc(l.note)}</text>`   /* a broken prev/next pair */
+    :`<text x="16" y="${HT-30-18*(LLN.length-k)}" font-size="12" fill="${l.bad?BAD:INK}" ${MONO} paint-order="stroke" stroke="#fff" stroke-width="4"><tspan font-weight="700">${esc(l.names)}:</tspan> ${esc(l.text)} ${l.count?`<tspan fill="${MUT}">(${l.count} node${l.count===1?"":"s"})</tspan>`:""}</text>`; });   /* list lines */
+  const heapNote=`${sizes.length===1?sizes[0]+"-byte blocks":"blocks"}, ${LORDER?"in list order":"in address order (list order is set by next)"}`+(TRS.length?" · trees: root on top":"")+(LL.some(l=>l.dbl)?" · doubly linked: next below, prev above":"")+(LL.some(l=>l.circ)?" · circular: the last arrow goes back to the first":"")+(RHO.size?" · a loop: the last arrow goes back into the middle":"")+(LL.some(l=>l.kern)?" · list_head: arrows land on the list field":"")+(GRIDS.length?" · grids: row pointers on the left":"")+(XUP?" · extra pointers (link, random …): dashed, above":"")+(MPOS.size?" · child lists: a row down":"")+(TRS.length&&s.heap.some(n=>TPOS.has(n.addr)&&extrasOf(n).some(f=>PARENT_RE.test(f.name)&&f.value))?" · parent: thin, dashed, up":"");
+  o+=`<text x="16" y="${HT-30}" font-size="15" font-weight="600" fill="${INK}">Heap<tspan dx="10" font-size="11.5" font-weight="400" fill="${MUT}">${heapNote}</tspan></text>`;
   if(inner){
     o+=`<text x="300" y="21" font-size="11.5" font-weight="700" fill="${REACH}">Blue shows how ${esc(inner.func)} gets there. Hover it to follow it.</text>`;   /* next to the title, so it's always in view */
     const lx=16+46+Math.round(heapNote.length*6.3)+40;                                           /* hop colour legend, right after the heap title */
-    o+=`<text x="${lx}" y="${HY-30}" font-size="10.5" fill="${MUT}">Hops away</text>`+
-       ["own","1","2","3+"].map((t,i)=>`<rect x="${lx+74+i*44}" y="${HY-39}" width="9" height="11" rx="2" fill="${HOPC[i]}"/><text x="${lx+86+i*44}" y="${HY-30}" font-size="10.5" fill="${MUT}">${t}</text>`).join("");
+    o+=`<text x="${lx}" y="${HT-30}" font-size="10.5" fill="${MUT}">Hops away</text>`+
+       ["own","1","2","3+"].map((t,i)=>`<rect x="${lx+74+i*44}" y="${HT-39}" width="9" height="11" rx="2" fill="${HOPC[i]}"/><text x="${lx+86+i*44}" y="${HT-30}" font-size="10.5" fill="${MUT}">${t}</text>`).join("");
   }
   const cx={}, byAddr={}; s.heap.forEach(b=>byAddr[b.addr]=b);
   const HAG={};                                                  /* heap arrays' slots, on the page: where arrows land */
@@ -2610,7 +2642,7 @@ function renderCards(s){
     const w=r.v.length*6.2+6, lx=anchor==="end"?x0-w:x0;
     return `<g${F?DIM:""}><rect x="${lx}" y="${y0-11}" width="${w}" height="14" rx="3" fill="#fff" opacity="0.9"/>`+
       `<text x="${anchor==="end"?x0-3:x0+3}" y="${y0}" font-size="10" font-weight="700" text-anchor="${anchor}" fill="${REACH}" ${MONO}${EX(r.v)}>${esc(r.v)}</text></g>`; };
-  let low=(rowsN?ly0+rowH:TH?HY+TH-30-LV+34:HY+CARDH)+90, lastLy=-1e9, ghosts="";
+  let low=(rowsN?ly0+rowH:MH?HY+TH+MH-MLG:TH?HY+TH-30-LV+34:HY+CARDH)+90, lastLy=-1e9, ghosts="";
   const link=(x1,a,x2,b,d)=>cy[a]===cy[b]?`M${x1},${cy[a]+CARDH} C${x1},${cy[a]+CARDH+d} ${x2},${cy[b]+CARDH+d} ${x2},${cy[b]+CARDH+3}`   /* same row: curve under */
     :`M${x1},${cy[a]+CARDH} C${x1},${cy[a]+CARDH+50} ${x2+58},${cy[b]-60} ${x2+58},${cy[b]-2}`;                                        /* another row: land on its top */
   const LAND={};
@@ -2623,9 +2655,29 @@ function renderCards(s){
   /* next links, curving under the cards */
   const tabEnd=a=>cx[a]+8+show(a).length*7.4+18;                 /* the right end of a card's address tab */
   const inBlk=p=>s.heap.find(n=>!n.freed&&n.kind!=="array"&&p>n.addr&&p<n.addr+(n.size||16));   /* a struct block p points into the middle of */
+  const extraPath=(n,fd,to,k)=>{                                   /* where an extra pointer's arrow goes: {d, x1, y1, lx, ly, kind, stub} */
+    const sx=cx[n.addr], sy=cy[n.addr], tx=cx[to], ty=cy[to], mp=MPOS.get(n.addr), mt=MPOS.get(to);
+    if(CHILD_RE.test(fd.name)&&mp&&mt&&mt.lv>mp.lv){ const x1=sx+CW/2+20, y1=sy+CARDH, x2=tx+CW-60, y2=ty-2;   /* down to its child list, a row below */
+      return {d:`M${x1},${y1} C${x1},${y1+70} ${x2},${y2-70} ${x2},${y2}`,x1,y1,lx:(x1+x2)/2,ly:(y1+y2)/2+6,kind:"down"}; }
+    if(PARENT_RE.test(fd.name)&&TPOS.has(n.addr)&&TPOS.has(to)&&ty<sy){ const lft=tx>sx, x1=lft?sx+CW-40:Math.max(sx+70,tabEnd(n.addr)+10), y1=sy-2, x2=tx+CW/2+(lft?-10:10), y2=ty+CARDH+3;   /* a tree: thin, up to its parent */
+      return {d:`M${x1},${y1} C${x1},${y1-36} ${x2},${y2+36} ${x2},${y2}`,x1,y1,lx:x1+(lft?-100:100),ly:y1-10,kind:"up"}; }   /* its label beside where it starts: the left/right arrows have theirs in the middle */
+    const x1=sx+CW-12, y1=sy-19, x2=to===n.addr?sx+CW-58:tx+CW-64;   /* above the row: link, random, jump … (to itself: a little loop) */
+    if(ty===sy){ const d=to===n.addr?40:Math.min(70,30+Math.abs(tx-sx)/STEP*12+k*10), y2=ty-2;   /* at most 19 + 0.75 × 70 above the card: under the heap's title */
+      return {d:`M${x1},${y1} C${x1},${y1-d} ${x2},${y2-d} ${x2},${y2}`,x1,y1,lx:(x1+x2)/2,ly:y1-d*0.75+16,kind:"over",stub:true}; }
+    const up=ty<sy, y2=up?ty+CARDH+3:ty-2;                          /* a card in another row */
+    return {d:`M${x1},${y1} C${x1},${y1-60} ${x2},${up?y2+60:y2-60} ${x2},${y2}`,x1,y1,lx:(x1+x2)/2,ly:(y1+y2)/2,kind:"rows",stub:true}; };
+  const extraArrow=(n,fd,k)=>{
+    const key="h:"+n.addr+":"+fd.name, C=CH.has(key), I=!C&&TT.inv.has(key), F=TT.on&&!C&&!I, tb=byAddr[fd.value], tf=!!(tb&&tb.freed);
+    const col=tf?BAD:C?AMB:I?INK:XTRA, mk=tf?"r":C?"a":I?"k":"c", P=extraPath(n,fd,fd.value,k), thin=P.kind==="up";   /* dashed, never the "draw" animation: it would make it solid */
+    const what=P.kind==="down"?"down to the child list, a row below":P.kind==="up"?"up to its parent":fd.value===n.addr?"to itself":"over the cards";
+    const tip=`${fd.name} of ${show(n.addr)} points to ${show(fd.value)}${tf?", a freed block: using it is a bug":""}\nan extra pointer: not next${linksOf(n)&&linksOf(n).prev?" or prev":""}${treeLR(n)?" (not left or right)":""}, so its arrow is dashed and goes ${what}`;
+    arrows+=`<path data-arrow="${key}" d="${P.d}" fill="none" stroke="${col}" stroke-width="${C||I?2.2:thin?1.1:1.5}" stroke-dasharray="${thin?"3 3":"6 4"}" stroke-linecap="round" marker-end="url(#m${mk})"${F?DIM:""} data-tip="${esc(tip)}"/>`+
+      `<circle cx="${P.x1}" cy="${P.y1}" r="${thin?2.6:3.4}" fill="${col}"${F?DIM:""}/>`+(P.stub?`<line x1="${P.x1}" y1="${P.y1}" x2="${P.x1}" y2="${cy[n.addr]+2}" stroke="${col}" stroke-width="1.2"${F?DIM:""}/>`:"");
+    if(C||I||tf) labels+=label(tf?`${fd.name} points to a freed node`:`${fd.name} ${C?"now points to":"is how we reach"} ${show(fd.value)}`,P.lx,P.ly,col); };
   s.heap.forEach(n=>{
-    const tk=TPOS.has(n.addr)&&TK.get(n.addr);
+    const tk=TPOS.has(n.addr)&&TK.get(n.addr), EXn=extrasOf(n); let ek=0;
     FL(n).forEach((fd,j)=>{
+      if(EXn.includes(fd)){ if(!n.freed&&fd.value&&cx[n.addr]!==undefined&&cx[fd.value]!==undefined) extraArrow(n,fd,ek++); return; }   /* link, random, child, parent …: dashed, its own colour */
       if(tk&&(fd===tk.L||fd===tk.R)&&cx[n.addr]!==undefined){       /* a tree: left and right go down to the children */
         const key="h:"+n.addr+":"+fd.name, C=CH.has(key), I=!C&&TT.inv.has(key), F=TT.on&&!C&&!I, col=C?AMB:I?INK:MUT, isL=fd===tk.L;
         const x1=cx[n.addr]+(isL?44:CW-44), y1=cy[n.addr]+CARDH, rf=RC[key];
@@ -2702,8 +2754,10 @@ function renderCards(s){
   /* cut links: the arrow this line just replaced, as a faint ghost for one step */
   if(at>0){ const P=TRACE.steps[at-1], pb={}, pv={}; P.heap.forEach(n=>pb[n.addr]=n);
     s.heap.forEach(n=>{ const o=pb[n.addr]; if(n.freed||!o||o.freed||cx[n.addr]===undefined) return;
+      const EXn=extrasOf(n);
       FL(n).forEach((fd,j)=>{ const of=fd.kind==="ptr"&&FL(o).find(f=>f.name===fd.name), ov=of&&of.value;
         if(!ov||ov===fd.value||cx[ov]===undefined) return;
+        if(EXn.includes(fd)){ const P=extraPath(n,fd,ov,0); ghosts+=`<path d="${P.d}" fill="none" stroke="${DEAD}" stroke-width="1.8" stroke-dasharray="3 4"/>`; labels+=label(`cut: ${fd.name} was ${show(ov)}`,P.lx,P.ly-14,MUT); return; }   /* an extra one: along its own path */
         const x1=cx[n.addr]+CW-20, x2=cx[ov]+20, by=cy[n.addr]+CARDH, d=30+Math.abs(cx[ov]-cx[n.addr])/STEP*12+j*10, ly=Math.max(by+Math.max(d*0.75+16,30),lastLy+18); lastLy=ly;
         low=Math.max(low,ly+14);
         ghosts+=`<path d="${link(x1,n.addr,x2,ov,d)}" fill="none" stroke="${DEAD}" stroke-width="1.8" stroke-dasharray="3 4"/>`;
@@ -2804,7 +2858,7 @@ function renderCards(s){
     labels+=label(`${c.name}: ${c.text}`,g("x")+g("width")/2,g("y")+g("height")+16,BAD); });
   const mk=(id,c)=>`<marker id="m${id}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,1L10,5L0,9L2.5,5z" fill="${c}"/></marker>`;
   const big=t=>t.replace(/font-size="(\d+(?:\.\d+)?)"/g,(m,v)=>+v<11.5?'font-size="11.5"':m);        /* nothing smaller than 11.5px */
-  return `<svg viewBox="0 0 ${W} ${low}" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans',system-ui,sans-serif"><defs>${mk("a",AMB)}${mk("g",MUT)}${mk("k",INK)}${mk("r",BAD)}</defs>${big(o+ghosts+arrows+labels)}</svg>`;
+  return `<svg viewBox="0 0 ${W} ${low}" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans',system-ui,sans-serif"><defs>${mk("a",AMB)}${mk("g",MUT)}${mk("k",INK)}${mk("r",BAD)}${arrows.includes("url(#mc)")?mk("c",XTRA):""}</defs>${big(o+ghosts+arrows+labels)}</svg>`;
 }
 /* ---------- memory layout view: the same state as raw bytes ---------- */
 const LIMIT=96;                                                  /* bytes drawn per variable or block */

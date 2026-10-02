@@ -32,6 +32,9 @@ Small C programs and their traces, to re-check `node_cards_viewer.html` and `tra
 | dlist_broken | the same list with `c->prev = a` (should be b): a red prev arrow and "0x300's prev doesn't point back to 0x200" |
 | circular | a circular singly linked list of 3 nodes, walked with do/while, then cut and freed: `head: 1 → 2 → 3 → (back to 1)` and the last arrow curving back |
 | rho | a 5-node list whose tail points back to node 2 (a "ρ"), walked 8 steps, then cut: `head: 1 → 2 → 3 → 4 → 5 → (back to 2)`, the loop arrow and "↻ loop start" |
+| link_list | `struct node { int val; struct node *next; struct node *link; }`, 4 nodes linked by hand, `a->link = c`, `b->link = a`, `c->link = c`, `d->link = NULL`: the link arrows dashed and teal above the cards, next arrows below; the list line ignores link |
+| child_list | `struct node { int val; struct node *next; struct node *child; }`: 1 → 2 → 3 → 4, 2's child 5 → 6, 4's child 7 → 8, built by hand: each child list in a row under its node, the child arrows going down, `2's child: 5 → 6 → NULL` |
+| parent_tree | a 5-node tree with `parent` pointers built by hand, then `for (p = leaf; p != NULL; p = p->parent)`: thin dashed parent arrows going up |
 | klist | kernel style: `struct list_head`, INIT_LIST_HEAD, list_add_tail, list_del, container_of with offsetof, `struct item { int val; struct list_head list; }`, a global LIST_HEAD and one on the stack |
 | bag_typedef | `typedef struct { int *data; int size; } Bag;` with no struct name: the Bag card (it didn't show before) and its data array |
 | fn_pointer | `struct calc { int a; int b; int (*op)(int, int); }`: `c.op = add`, `c.op(c.a, c.b)`, then `c.op = mul`: the field shows `→ add()`, click it to see add in the code; "Calls add through c.op" |
